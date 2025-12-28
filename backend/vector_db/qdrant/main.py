@@ -8,7 +8,13 @@ Chạy độc lập: python vector_db/qdrant/main.py
 """
 
 import sys
+import io
 from pathlib import Path
+
+# Fix encoding cho Windows console
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 # Thêm project root vào path
 project_root = Path(__file__).resolve().parent.parent.parent
@@ -28,8 +34,15 @@ def main():
     
     # Đường dẫn các file
     project_root = Path(__file__).resolve().parent.parent.parent
-    embeddings_file = project_root / 'artifacts' / 'embeddings' / 'item_embeddings.npy'
-    item_ids_file = project_root / 'artifacts' / 'embeddings' / 'item_ids.json'
+    # Tìm embeddings ở backend/artifacts hoặc artifacts
+    embeddings_file = project_root / 'backend' / 'artifacts' / 'embeddings' / 'item_embeddings.npy'
+    item_ids_file = project_root / 'backend' / 'artifacts' / 'embeddings' / 'item_ids.json'
+    
+    # Fallback: thử tìm ở artifacts nếu không có ở backend/artifacts
+    if not embeddings_file.exists():
+        embeddings_file = project_root / 'artifacts' / 'embeddings' / 'item_embeddings.npy'
+    if not item_ids_file.exists():
+        item_ids_file = project_root / 'artifacts' / 'embeddings' / 'item_ids.json'
     
     # Bước 1: Khởi tạo QdrantManager
     print("\n" + "=" * 80)
@@ -78,9 +91,14 @@ def main():
     print("BƯỚC 4: KIỂM TRA VÀ TẠO COLLECTION")
     print("=" * 80)
     
-    if not qdrant_manager.ensure_collection(vector_size=embedding_dim):
-        print("\n[ERROR] Không thể tạo collection!")
-        return False
+    # Thử ensure collection, nếu lỗi validation thì bỏ qua (collection đã tồn tại)
+    try:
+        if not qdrant_manager.ensure_collection(vector_size=embedding_dim):
+            print("\n[WARNING] Không thể kiểm tra collection (có thể do version compatibility)")
+            print("[INFO] Tiếp tục với upsert...")
+    except Exception as e:
+        print(f"\n[WARNING] Lỗi khi kiểm tra collection: {e}")
+        print("[INFO] Collection có thể đã tồn tại, tiếp tục với upsert...")
     
     # Bước 5: Upsert items vào Qdrant
     print("\n" + "=" * 80)

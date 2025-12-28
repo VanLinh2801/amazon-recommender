@@ -171,8 +171,8 @@ export default function DashboardPage() {
             </TabsList>
 
             {/* Overview Tab */}
-            <TabsContent value="overview" className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
+            <TabsContent value="overview" className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-2">
                 {/* Rating Distribution */}
                 {ratingData.length > 0 && (
                   <Card>
@@ -180,16 +180,18 @@ export default function DashboardPage() {
                       <CardTitle>Phân bố Rating</CardTitle>
                       <CardDescription>Phân bố số lượng ratings theo mức độ</CardDescription>
                     </CardHeader>
-                    <CardContent>
-                      <ChartContainer config={chartConfig} className="h-[350px]">
-                        <BarChart data={ratingData}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="rating" />
-                          <YAxis />
-                          <ChartTooltip content={<ChartTooltipContent />} />
-                          <Bar dataKey="count" fill="#3b82f6" radius={[8, 8, 0, 0]} />
-                        </BarChart>
-                      </ChartContainer>
+                    <CardContent className="p-6">
+                      <div className="w-full" style={{ height: '350px' }}>
+                        <ChartContainer config={chartConfig} className="w-full h-full">
+                          <BarChart data={ratingData}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="rating" />
+                            <YAxis />
+                            <ChartTooltip content={<ChartTooltipContent />} />
+                            <Bar dataKey="count" fill="#3b82f6" radius={[8, 8, 0, 0]} />
+                          </BarChart>
+                        </ChartContainer>
+                      </div>
                     </CardContent>
                   </Card>
                 )}
@@ -201,16 +203,18 @@ export default function DashboardPage() {
                       <CardTitle>Phân bố Hoạt động User</CardTitle>
                       <CardDescription>Histogram số interactions per user</CardDescription>
                     </CardHeader>
-                    <CardContent>
-                      <ChartContainer config={chartConfig} className="h-[350px]">
-                        <BarChart data={userActivity.histogram}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="range" />
-                          <YAxis />
-                          <ChartTooltip content={<ChartTooltipContent />} />
-                          <Bar dataKey="count" fill="#8b5cf6" radius={[8, 8, 0, 0]} />
-                        </BarChart>
-                      </ChartContainer>
+                    <CardContent className="p-6">
+                      <div className="w-full" style={{ height: '350px' }}>
+                        <ChartContainer config={chartConfig} className="w-full h-full">
+                          <BarChart data={userActivity.histogram}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="range" />
+                            <YAxis />
+                            <ChartTooltip content={<ChartTooltipContent />} />
+                            <Bar dataKey="count" fill="#8b5cf6" radius={[8, 8, 0, 0]} />
+                          </BarChart>
+                        </ChartContainer>
+                      </div>
                     </CardContent>
                   </Card>
                 )}
@@ -222,28 +226,30 @@ export default function DashboardPage() {
                       <CardTitle>Train/Test Split</CardTitle>
                       <CardDescription>Phân chia dữ liệu train và test</CardDescription>
                     </CardHeader>
-                    <CardContent>
-                      <ChartContainer config={chartConfig} className="h-[350px]">
-                        <PieChart>
-                          <Pie
-                            data={[
-                              { name: "Train", value: interactionStats.train_count },
-                              { name: "Test", value: interactionStats.test_count },
-                            ]}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
-                            outerRadius={100}
-                            fill="#8884d8"
-                            dataKey="value"
-                          >
-                            <Cell fill="#3b82f6" />
-                            <Cell fill="#8b5cf6" />
-                          </Pie>
-                          <ChartTooltip content={<ChartTooltipContent />} />
-                        </PieChart>
-                      </ChartContainer>
+                    <CardContent className="p-6">
+                      <div className="w-full" style={{ height: '350px' }}>
+                        <ChartContainer config={chartConfig} className="w-full h-full">
+                          <PieChart>
+                            <Pie
+                              data={[
+                                { name: "Train", value: interactionStats.train_count },
+                                { name: "Test", value: interactionStats.test_count },
+                              ]}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
+                              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+                              outerRadius={100}
+                              fill="#8884d8"
+                              dataKey="value"
+                            >
+                              <Cell fill="#3b82f6" />
+                              <Cell fill="#8b5cf6" />
+                            </Pie>
+                            <ChartTooltip content={<ChartTooltipContent />} />
+                          </PieChart>
+                        </ChartContainer>
+                      </div>
                     </CardContent>
                   </Card>
                 )}
@@ -281,8 +287,8 @@ export default function DashboardPage() {
             </TabsContent>
 
             {/* Ratings Tab */}
-            <TabsContent value="ratings" className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
+            <TabsContent value="ratings" className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-2">
                 {/* Rating Distribution Bar Chart */}
                 {ratingData.length > 0 && (
                   <Card>
@@ -290,20 +296,22 @@ export default function DashboardPage() {
                       <CardTitle>Phân bố Rating (Bar Chart)</CardTitle>
                       <CardDescription>Số lượng ratings theo từng mức độ</CardDescription>
                     </CardHeader>
-                    <CardContent>
-                      <ChartContainer config={chartConfig} className="h-[400px]">
-                        <BarChart data={ratingData}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="rating" />
-                          <YAxis />
-                          <ChartTooltip content={<ChartTooltipContent />} />
-                          <Bar dataKey="count" fill="#3b82f6" radius={[8, 8, 0, 0]}>
-                            {ratingData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ChartContainer>
+                    <CardContent className="p-6">
+                      <div className="w-full" style={{ height: '400px' }}>
+                        <ChartContainer config={chartConfig} className="w-full h-full">
+                          <BarChart data={ratingData}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="rating" />
+                            <YAxis />
+                            <ChartTooltip content={<ChartTooltipContent />} />
+                            <Bar dataKey="count" fill="#3b82f6" radius={[8, 8, 0, 0]}>
+                              {ratingData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ChartContainer>
+                      </div>
                     </CardContent>
                   </Card>
                 )}
@@ -315,26 +323,28 @@ export default function DashboardPage() {
                       <CardTitle>Phân bố Rating (Pie Chart)</CardTitle>
                       <CardDescription>Tỷ lệ phần trăm của từng mức rating</CardDescription>
                     </CardHeader>
-                    <CardContent>
-                      <ChartContainer config={chartConfig} className="h-[400px]">
-                        <PieChart>
-                          <Pie
-                            data={ratingData}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            label={({ rating, percent }) => `Rating ${rating}: ${(percent * 100).toFixed(1)}%`}
-                            outerRadius={120}
-                            fill="#8884d8"
-                            dataKey="count"
-                          >
-                            {ratingData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <ChartTooltip content={<ChartTooltipContent />} />
-                        </PieChart>
-                      </ChartContainer>
+                    <CardContent className="p-6">
+                      <div className="w-full" style={{ height: '400px' }}>
+                        <ChartContainer config={chartConfig} className="w-full h-full">
+                          <PieChart>
+                            <Pie
+                              data={ratingData}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
+                              label={({ rating, percent }) => `Rating ${rating}: ${(percent * 100).toFixed(1)}%`}
+                              outerRadius={120}
+                              fill="#8884d8"
+                              dataKey="count"
+                            >
+                              {ratingData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <ChartTooltip content={<ChartTooltipContent />} />
+                          </PieChart>
+                        </ChartContainer>
+                      </div>
                     </CardContent>
                   </Card>
                 )}
@@ -342,8 +352,8 @@ export default function DashboardPage() {
             </TabsContent>
 
             {/* Categories Tab */}
-            <TabsContent value="categories" className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
+            <TabsContent value="categories" className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-2">
                 {/* Category Distribution */}
                 {categoryData.length > 0 && (
                   <Card>
@@ -351,20 +361,22 @@ export default function DashboardPage() {
                       <CardTitle>Tần suất Nhóm Sản phẩm (Top 20)</CardTitle>
                       <CardDescription>Số lượng items theo category</CardDescription>
                     </CardHeader>
-                    <CardContent>
-                      <ChartContainer config={chartConfig} className="h-[500px]">
-                        <BarChart data={categoryData} layout="vertical">
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis type="number" />
-                          <YAxis dataKey="category" type="category" width={150} />
-                          <ChartTooltip content={<ChartTooltipContent />} />
-                          <Bar dataKey="count" fill="#8b5cf6" radius={[0, 8, 8, 0]}>
-                            {categoryData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ChartContainer>
+                    <CardContent className="p-6">
+                      <div className="w-full" style={{ height: '500px' }}>
+                        <ChartContainer config={chartConfig} className="w-full h-full">
+                          <BarChart data={categoryData} layout="vertical">
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis type="number" />
+                            <YAxis dataKey="category" type="category" width={150} />
+                            <ChartTooltip content={<ChartTooltipContent />} />
+                            <Bar dataKey="count" fill="#8b5cf6" radius={[0, 8, 8, 0]}>
+                              {categoryData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ChartContainer>
+                      </div>
                     </CardContent>
                   </Card>
                 )}
@@ -376,26 +388,28 @@ export default function DashboardPage() {
                       <CardTitle>Tần suất Nhóm Sản phẩm (Bar Chart)</CardTitle>
                       <CardDescription>Số lượng items theo category</CardDescription>
                     </CardHeader>
-                    <CardContent>
-                      <ChartContainer config={chartConfig} className="h-[500px]">
-                        <BarChart data={categoryData}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis 
-                            dataKey="category" 
-                            angle={-45}
-                            textAnchor="end"
-                            height={120}
-                            fontSize={12}
-                          />
-                          <YAxis />
-                          <ChartTooltip content={<ChartTooltipContent />} />
-                          <Bar dataKey="count" fill="#ec4899" radius={[8, 8, 0, 0]}>
-                            {categoryData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ChartContainer>
+                    <CardContent className="p-6">
+                      <div className="w-full" style={{ height: '500px' }}>
+                        <ChartContainer config={chartConfig} className="w-full h-full">
+                          <BarChart data={categoryData}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis 
+                              dataKey="category" 
+                              angle={-45}
+                              textAnchor="end"
+                              height={120}
+                              fontSize={12}
+                            />
+                            <YAxis />
+                            <ChartTooltip content={<ChartTooltipContent />} />
+                            <Bar dataKey="count" fill="#ec4899" radius={[8, 8, 0, 0]}>
+                              {categoryData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ChartContainer>
+                      </div>
                     </CardContent>
                   </Card>
                 )}
@@ -403,8 +417,8 @@ export default function DashboardPage() {
             </TabsContent>
 
             {/* Top Items Tab */}
-            <TabsContent value="items" className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
+            <TabsContent value="items" className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-2">
                 {/* Top Items by Interactions */}
                 {topItems.length > 0 && (
                   <Card>
@@ -412,16 +426,18 @@ export default function DashboardPage() {
                       <CardTitle>Top Items theo Interactions</CardTitle>
                       <CardDescription>Top 20 items có nhiều interactions nhất</CardDescription>
                     </CardHeader>
-                    <CardContent>
-                      <ChartContainer config={chartConfig} className="h-[500px]">
-                        <BarChart data={topItems} layout="vertical">
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis type="number" />
-                          <YAxis dataKey="item_id" type="category" width={120} fontSize={10} />
-                          <ChartTooltip content={<ChartTooltipContent />} />
-                          <Bar dataKey="count" fill="#10b981" radius={[0, 8, 8, 0]} />
-                        </BarChart>
-                      </ChartContainer>
+                    <CardContent className="p-6">
+                      <div className="w-full" style={{ height: '500px' }}>
+                        <ChartContainer config={chartConfig} className="w-full h-full">
+                          <BarChart data={topItems} layout="vertical">
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis type="number" />
+                            <YAxis dataKey="item_id" type="category" width={120} fontSize={10} />
+                            <ChartTooltip content={<ChartTooltipContent />} />
+                            <Bar dataKey="count" fill="#10b981" radius={[0, 8, 8, 0]} />
+                          </BarChart>
+                        </ChartContainer>
+                      </div>
                     </CardContent>
                   </Card>
                 )}
@@ -433,16 +449,18 @@ export default function DashboardPage() {
                       <CardTitle>Top Items theo Popularity</CardTitle>
                       <CardDescription>Top 20 items có interaction_count cao nhất</CardDescription>
                     </CardHeader>
-                    <CardContent>
-                      <ChartContainer config={chartConfig} className="h-[500px]">
-                        <BarChart data={itemPopularity} layout="vertical">
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis type="number" />
-                          <YAxis dataKey="item_id" type="category" width={120} fontSize={10} />
-                          <ChartTooltip content={<ChartTooltipContent />} />
-                          <Bar dataKey="interaction_count" fill="#f59e0b" radius={[0, 8, 8, 0]} />
-                        </BarChart>
-                      </ChartContainer>
+                    <CardContent className="p-6">
+                      <div className="w-full" style={{ height: '500px' }}>
+                        <ChartContainer config={chartConfig} className="w-full h-full">
+                          <BarChart data={itemPopularity} layout="vertical">
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis type="number" />
+                            <YAxis dataKey="item_id" type="category" width={120} fontSize={10} />
+                            <ChartTooltip content={<ChartTooltipContent />} />
+                            <Bar dataKey="interaction_count" fill="#f59e0b" radius={[0, 8, 8, 0]} />
+                          </BarChart>
+                        </ChartContainer>
+                      </div>
                     </CardContent>
                   </Card>
                 )}
@@ -454,33 +472,35 @@ export default function DashboardPage() {
                       <CardTitle>Popularity vs Rating</CardTitle>
                       <CardDescription>Mối quan hệ giữa interaction_count và mean_rating</CardDescription>
                     </CardHeader>
-                    <CardContent>
-                      <ChartContainer config={chartConfig} className="h-[400px]">
-                        <AreaChart data={itemPopularity}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="interaction_count" />
-                          <YAxis yAxisId="left" />
-                          <YAxis yAxisId="right" orientation="right" />
-                          <ChartTooltip content={<ChartTooltipContent />} />
-                          <Area 
-                            yAxisId="left"
-                            type="monotone" 
-                            dataKey="interaction_count" 
-                            stroke="#3b82f6" 
-                            fill="#3b82f6" 
-                            fillOpacity={0.6}
-                          />
-                          <Area 
-                            yAxisId="right"
-                            type="monotone" 
-                            dataKey="mean_rating" 
-                            stroke="#8b5cf6" 
-                            fill="#8b5cf6" 
-                            fillOpacity={0.6}
-                          />
-                          <Legend />
-                        </AreaChart>
-                      </ChartContainer>
+                    <CardContent className="p-6">
+                      <div className="w-full" style={{ height: '400px' }}>
+                        <ChartContainer config={chartConfig} className="w-full h-full">
+                          <AreaChart data={itemPopularity}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="interaction_count" />
+                            <YAxis yAxisId="left" />
+                            <YAxis yAxisId="right" orientation="right" />
+                            <ChartTooltip content={<ChartTooltipContent />} />
+                            <Area 
+                              yAxisId="left"
+                              type="monotone" 
+                              dataKey="interaction_count" 
+                              stroke="#3b82f6" 
+                              fill="#3b82f6" 
+                              fillOpacity={0.6}
+                            />
+                            <Area 
+                              yAxisId="right"
+                              type="monotone" 
+                              dataKey="mean_rating" 
+                              stroke="#8b5cf6" 
+                              fill="#8b5cf6" 
+                              fillOpacity={0.6}
+                            />
+                            <Legend />
+                          </AreaChart>
+                        </ChartContainer>
+                      </div>
                     </CardContent>
                   </Card>
                 )}
@@ -520,8 +540,8 @@ export default function DashboardPage() {
             </TabsContent>
 
             {/* Data Cleaning Tab */}
-            <TabsContent value="cleaning" className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
+            <TabsContent value="cleaning" className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-2">
                 {/* Reviews Cleaning */}
                 {cleaningStats?.reviews && (
                   <Card>
@@ -529,22 +549,24 @@ export default function DashboardPage() {
                       <CardTitle>Reviews Cleaning Process</CardTitle>
                       <CardDescription>So sánh trước và sau khi clean</CardDescription>
                     </CardHeader>
-                    <CardContent>
-                      <ChartContainer config={chartConfig} className="h-[350px]">
-                        <BarChart data={[
-                          { phase: "Before", count: cleaningStats.reviews.before },
-                          { phase: "After", count: cleaningStats.reviews.after },
-                        ]}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="phase" />
-                          <YAxis />
-                          <ChartTooltip content={<ChartTooltipContent />} />
-                          <Bar dataKey="count" radius={[8, 8, 0, 0]}>
-                            <Cell fill="#ef4444" />
-                            <Cell fill="#10b981" />
-                          </Bar>
-                        </BarChart>
-                      </ChartContainer>
+                    <CardContent className="p-6">
+                      <div className="w-full" style={{ height: '350px' }}>
+                        <ChartContainer config={chartConfig} className="w-full h-full">
+                          <BarChart data={[
+                            { phase: "Before", count: cleaningStats.reviews.before },
+                            { phase: "After", count: cleaningStats.reviews.after },
+                          ]}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="phase" />
+                            <YAxis />
+                            <ChartTooltip content={<ChartTooltipContent />} />
+                            <Bar dataKey="count" radius={[8, 8, 0, 0]}>
+                              <Cell fill="#ef4444" />
+                              <Cell fill="#10b981" />
+                            </Bar>
+                          </BarChart>
+                        </ChartContainer>
+                      </div>
                       <div className="mt-4 space-y-2 text-sm">
                         <div className="flex justify-between">
                           <span>Dropped:</span>
@@ -566,22 +588,24 @@ export default function DashboardPage() {
                       <CardTitle>Metadata Cleaning Process</CardTitle>
                       <CardDescription>So sánh trước và sau khi clean</CardDescription>
                     </CardHeader>
-                    <CardContent>
-                      <ChartContainer config={chartConfig} className="h-[350px]">
-                        <BarChart data={[
-                          { phase: "Before", count: cleaningStats.metadata.before },
-                          { phase: "After", count: cleaningStats.metadata.after },
-                        ]}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="phase" />
-                          <YAxis />
-                          <ChartTooltip content={<ChartTooltipContent />} />
-                          <Bar dataKey="count" radius={[8, 8, 0, 0]}>
-                            <Cell fill="#ef4444" />
-                            <Cell fill="#10b981" />
-                          </Bar>
-                        </BarChart>
-                      </ChartContainer>
+                    <CardContent className="p-6">
+                      <div className="w-full" style={{ height: '350px' }}>
+                        <ChartContainer config={chartConfig} className="w-full h-full">
+                          <BarChart data={[
+                            { phase: "Before", count: cleaningStats.metadata.before },
+                            { phase: "After", count: cleaningStats.metadata.after },
+                          ]}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="phase" />
+                            <YAxis />
+                            <ChartTooltip content={<ChartTooltipContent />} />
+                            <Bar dataKey="count" radius={[8, 8, 0, 0]}>
+                              <Cell fill="#ef4444" />
+                              <Cell fill="#10b981" />
+                            </Bar>
+                          </BarChart>
+                        </ChartContainer>
+                      </div>
                       <div className="mt-4 space-y-2 text-sm">
                         <div className="flex justify-between">
                           <span>Dropped:</span>
