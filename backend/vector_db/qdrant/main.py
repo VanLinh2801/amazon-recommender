@@ -16,11 +16,15 @@ if sys.platform == "win32":
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
-# Thêm project root vào path
-project_root = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(project_root))
+# Import trực tiếp từ file để tránh import các module khác trong project
+# (có thể có module cố kết nối database khi import)
+import importlib.util
+qdrant_manager_path = Path(__file__).resolve().parent / 'qdrant_manager.py'
+spec = importlib.util.spec_from_file_location("qdrant_manager", qdrant_manager_path)
+qdrant_manager_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(qdrant_manager_module)
+QdrantManager = qdrant_manager_module.QdrantManager
 
-from vector_db.qdrant.qdrant_manager import QdrantManager
 import numpy as np
 
 
