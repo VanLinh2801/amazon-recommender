@@ -1,0 +1,18 @@
+{
+  "model_type": "LogisticRegression",
+  "feature_order": [
+    "mf_score",
+    "popularity_score",
+    "rating_score",
+    "content_score"
+  ],
+  "n_features": 4,
+  "n_classes": 2,
+  "coefficients": [
+    7.952917491049939,
+    -0.40637868416418627,
+    7.228816629541473,
+    0.0
+  ],
+  "intercept": -4.012934899313085
+}
