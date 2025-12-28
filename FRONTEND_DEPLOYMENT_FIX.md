@@ -1,10 +1,33 @@
 # Fix Lỗi Build Frontend trên Vercel
 
-## Lỗi: Module Not Found
+## Lỗi: Module Not Found - Path Alias (@/)
 
-Nếu gặp lỗi `Module not found` khi deploy trên Vercel, làm theo các bước sau:
+Nếu gặp lỗi `Cannot find module '@/lib/utils'` hoặc path alias không được resolve, làm theo các bước sau:
 
 ## Giải pháp
+
+### Bước 0: Đảm bảo có jsconfig.json
+
+**QUAN TRỌNG:** Next.js cần cả `tsconfig.json` và `jsconfig.json` để resolve path aliases.
+
+File `jsconfig.json` đã được tạo với nội dung:
+```json
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    }
+  }
+}
+```
+
+Đảm bảo file này đã được commit:
+```bash
+git add frontend/jsconfig.json
+git commit -m "Add jsconfig.json for path alias resolution"
+git push origin main
+```
 
 ### Bước 1: Kiểm tra Root Directory
 
@@ -67,13 +90,18 @@ Nếu vẫn lỗi:
 3. Tìm dòng lỗi cụ thể
 4. Common issues:
    - **"Cannot find module"**: Thiếu dependency → Thêm vào `package.json`
-   - **"Path alias not found"**: Vấn đề với `@/` imports → Kiểm tra `tsconfig.json`
+   - **"Path alias not found"**: Vấn đề với `@/` imports → 
+     - Kiểm tra `tsconfig.json` có `baseUrl: "."` và `paths`
+     - Đảm bảo có `jsconfig.json` (Next.js cần cả 2 files)
+     - Kiểm tra Root Directory = `frontend` trên Vercel
    - **"Turbopack error"**: Next.js 16 issue → Đã fix trong `next.config.mjs`
 
 ## Checklist
 
 Trước khi deploy lại:
 
+- [ ] `jsconfig.json` đã được tạo và commit
+- [ ] `tsconfig.json` có `baseUrl: "."` và `paths` config
 - [ ] Root Directory = `frontend` trên Vercel
 - [ ] `pnpm-lock.yaml` đã được commit
 - [ ] `next.config.mjs` đã được cập nhật (không có webpack config phức tạp)
