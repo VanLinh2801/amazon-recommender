@@ -121,14 +121,28 @@ Khi đã deploy backend:
 
 ## Troubleshooting
 
-### Build Failed
+### Build Failed - Module Not Found
 
-**Lỗi:** Build fails với lỗi TypeScript hoặc dependencies
+**Lỗi:** `Module not found` khi build trên Vercel
+
+**Giải pháp:**
+1. Đảm bảo `next.config.mjs` đơn giản, không có webpack config phức tạp
+2. Kiểm tra `package.json` có đầy đủ dependencies
+3. Đảm bảo `pnpm-lock.yaml` hoặc `package-lock.json` đã được commit
+4. Trên Vercel, đảm bảo **Install Command** = `pnpm install` (hoặc `npm install`)
+5. Nếu vẫn lỗi, thử:
+   - Xóa `.next` folder local
+   - Chạy `pnpm install` lại
+   - Commit và push lại
+
+### Build Failed - TypeScript Errors
+
+**Lỗi:** Build fails với lỗi TypeScript
 
 **Giải pháp:**
 1. Kiểm tra `next.config.mjs` có `ignoreBuildErrors: true` không
-2. Kiểm tra `package.json` có đầy đủ dependencies
-3. Xem build logs trên Vercel để biết lỗi cụ thể
+2. Xem build logs trên Vercel để biết lỗi cụ thể
+3. Fix TypeScript errors hoặc tạm thời ignore nếu cần
 
 ### Root Directory không đúng
 

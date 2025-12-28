@@ -1,8 +1,5 @@
+# Ignore files không cần thiết khi deploy
 node_modules
 .next
 .env.local
 .env*.local
-*.log
-.DS_Store
-*.tsbuildinfo
-
