@@ -85,7 +85,8 @@ class RecommendationService:
         reference_item_id: Optional[str] = None,
         user_reference_items: Optional[List[str]] = None,
         content_score_boost: float = 1.0,
-        use_only_content_recall: bool = False
+        use_only_content_recall: bool = False,
+        user_interaction_count: Optional[int] = None
     ) -> tuple[List[ReRankedItem], int, int]:
         """
         Generate recommendations cho user.
@@ -97,6 +98,7 @@ class RecommendationService:
             user_reference_items: List of item IDs từ user history (cart, purchases, views)
             content_score_boost: Multiplier để boost content_score (default: 1.0, tăng lên 2.0-3.0 cho product detail)
             use_only_content_recall: Nếu True, chỉ dùng Content-based recall (cho product detail page, không dùng MF/Popularity)
+            user_interaction_count: Số lượng interactions của user (để điều chỉnh popularity weight)
             
         Returns:
             Tuple of (recommendations, recall_count, ranking_count)
@@ -238,6 +240,23 @@ class RecommendationService:
                 logger.warning(f"Error computing content scores: {e}, continuing without content scores")
                 content_scores = {}
         
+        # Sử dụng user_interaction_count từ parameter (đã được lấy từ database trong route handler)
+        # Nếu không có, thử lấy từ Redis như fallback
+        if user_interaction_count is None:
+            try:
+                # Thử lấy từ Redis (realtime) như fallback
+                from app.recommender.reranking_service import ReRankingService
+                temp_reranking = ReRankingService()
+                recent_items = temp_reranking._load_recent_items(user_id)
+                redis_count = len(recent_items) if recent_items else 0
+                user_interaction_count = redis_count
+                
+                if user_interaction_count:
+                    logger.debug(f"User {user_id} has {user_interaction_count} recent interactions (from Redis fallback)")
+            except Exception as e:
+                logger.debug(f"Could not get user interaction count: {e}, using default popularity weight")
+                user_interaction_count = None
+        
         # Rank candidates
         try:
             ranked_items = self.ranking_service.rank_candidates(
@@ -248,7 +267,8 @@ class RecommendationService:
                 user2idx=self.recall_service._user2idx,
                 idx2item=self.recall_service._idx2item,
                 content_scores=content_scores if content_scores else None,
-                content_score_boost=content_score_boost
+                content_score_boost=content_score_boost,
+                user_interaction_count=user_interaction_count
             )
             ranking_count = len(ranked_items)
             logger.info(f"Ranking: {ranking_count} ranked items")
