@@ -325,47 +325,6 @@ class RankingService:
         
         return scores
     
-    def _calculate_popularity_weight(self, user_interaction_count: Optional[int] = None) -> float:
-        """
-        Tính popularity weight động dựa trên số lượng interactions của user.
-        
-        Logic:
-        - User có nhiều interactions (>= 50) → giảm popularity weight (0.4 - 0.6)
-        - User có ít interactions (< 10) → giữ popularity weight cao (0.8 - 1.0)
-        - User có interactions trung bình (10-50) → weight trung bình (0.6 - 0.8)
-        
-        Args:
-            user_interaction_count: Số lượng interactions của user (None = dùng default)
-            
-        Returns:
-            Popularity weight (0.0 - 1.0)
-        """
-        if user_interaction_count is None:
-            # Default weight nếu không có thông tin
-            return self.popularity_weight
-        
-        # Tính weight động dựa trên interaction count
-        if user_interaction_count >= 50:
-            # User có nhiều log → giảm popularity weight
-            # Scale từ 0.4 đến 0.6 cho users có 50+ interactions
-            weight = max(0.4, 0.6 - (user_interaction_count - 50) * 0.002)
-            weight = min(0.6, weight)
-        elif user_interaction_count >= 10:
-            # User có interactions trung bình → weight trung bình
-            # Scale từ 0.6 đến 0.8 cho users có 10-50 interactions
-            weight = 0.8 - (user_interaction_count - 10) * 0.005
-            weight = max(0.6, min(0.8, weight))
-        else:
-            # User có ít interactions (< 10) → giữ popularity weight cao
-            # Scale từ 0.8 đến 1.0 cho users có < 10 interactions
-            weight = 0.8 + (10 - user_interaction_count) * 0.02
-            weight = min(1.0, weight)
-        
-        logger.debug(
-            f"Popularity weight for user with {user_interaction_count} interactions: {weight:.3f}"
-        )
-        return weight
-    
     def rank_candidates(
         self,
         user_id: str,
@@ -376,8 +335,7 @@ class RankingService:
         idx2item: Optional[Dict[int, str]] = None,
         item2idx: Optional[Dict[str, int]] = None,
         content_scores: Optional[Dict[str, float]] = None,
-        content_score_boost: float = 1.0,
-        user_interaction_count: Optional[int] = None
+        content_score_boost: float = 1.0
     ) -> List[RankedItem]:
         """
         Rank candidate items.
@@ -392,7 +350,6 @@ class RankingService:
             item2idx: Item to index mapping (optional)
             content_scores: Dict mapping item_id -> content_score (optional)
             content_score_boost: Multiplier để boost content_score (default: 1.0)
-            user_interaction_count: Số lượng interactions của user (để điều chỉnh popularity weight)
             
         Returns:
             List of RankedItem, sorted by rank_score DESC
@@ -401,14 +358,7 @@ class RankingService:
             logger.warning(f"No candidates to rank for user {user_id}")
             return []
         
-        # Tính popularity weight động dựa trên user interaction count
-        dynamic_popularity_weight = self._calculate_popularity_weight(user_interaction_count)
-        
-        logger.info(
-            f"Ranking {len(candidates)} candidates for user_id: {user_id}, "
-            f"interaction_count={user_interaction_count}, "
-            f"popularity_weight={dynamic_popularity_weight:.3f}"
-        )
+        logger.info(f"Ranking {len(candidates)} candidates for user_id: {user_id}")
         
         # Build feature vectors cho tất cả candidates
         feature_vectors = []
@@ -440,14 +390,6 @@ class RankingService:
                 user2idx=user2idx,
                 idx2item=idx2item
             )
-            
-            # Áp dụng dynamic popularity weight
-            # Feature order: [mf_score, popularity_score, rating_score, content_score]
-            if len(features) >= 2:
-                # Điều chỉnh popularity_score (index 1) bằng cách nhân với weight
-                original_popularity = features[1]
-                adjusted_popularity = original_popularity * dynamic_popularity_weight
-                features[1] = adjusted_popularity
             
             feature_vectors.append(features)
             candidate_items.append(candidate.item_id)

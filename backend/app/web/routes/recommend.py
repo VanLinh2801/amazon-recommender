@@ -318,7 +318,6 @@ async def get_recommendations(
         
         # Lấy user history để recommend items tương tự
         user_reference_items = []
-        user_interaction_count = None
         try:
             user_reference_items = await UserHistoryService.get_user_reference_items(
                 db=db,
@@ -329,17 +328,6 @@ async def get_recommendations(
                 limit_per_source=10
             )
             logger.info(f"User {current_user.id} has {len(user_reference_items)} reference items from history")
-            
-            # Lấy tổng số interactions của user từ database
-            from sqlalchemy import text
-            count_result = await db.execute(
-                text("SELECT COUNT(*) as count FROM interaction_logs WHERE user_id = :user_id"),
-                {"user_id": current_user.id}
-            )
-            count_row = count_result.fetchone()
-            if count_row:
-                user_interaction_count = count_row.count
-                logger.info(f"User {current_user.id} has {user_interaction_count} total interactions")
         except Exception as e:
             logger.warning(f"Error getting user history: {e}, continuing without history")
             user_reference_items = []
@@ -358,10 +346,8 @@ async def get_recommendations(
                 recommendation_service.generate_recommendations,
                 user_id_for_recall,
                 top_n,
-                user_reference_items,
-                1.5,  # content_score_boost
-                False,  # use_only_content_recall
-                user_interaction_count  # Truyền interaction count để điều chỉnh popularity weight
+                user_reference_items if user_reference_items else user_reference_items_from_history,
+                1.5  # content_score_boost
             )
                 reranked_items, recall_count, ranking_count = await asyncio.wait_for(
                     future,
