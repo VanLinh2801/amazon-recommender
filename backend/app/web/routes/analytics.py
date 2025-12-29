@@ -693,6 +693,135 @@ async def get_cleaning_stats():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/data-quality")
+async def get_data_quality():
+    """Lấy thống kê về data quality: null values, missing data, duplicates."""
+    try:
+        # Đọc raw và normalized data để so sánh
+        reviews_raw_path = PROCESSED_DIR / "reviews_raw.parquet"
+        reviews_normalized_path = PROCESSED_DIR / "reviews_normalized.parquet"
+        metadata_raw_path = PROCESSED_DIR / "metadata_raw.parquet"
+        metadata_normalized_path = PROCESSED_DIR / "metadata_normalized.parquet"
+        
+        stats = {}
+        
+        # Reviews Data Quality
+        if reviews_raw_path.exists() and reviews_normalized_path.exists():
+            reviews_raw = pl.read_parquet(str(reviews_raw_path))
+            reviews_normalized = pl.read_parquet(str(reviews_normalized_path))
+            
+            total_rows = len(reviews_raw)
+            
+            # Null values per column
+            null_counts = {}
+            for col in reviews_raw.columns:
+                null_count = reviews_raw.filter(pl.col(col).is_null()).height
+                null_counts[col] = {
+                    "count": null_count,
+                    "percentage": (null_count / total_rows * 100) if total_rows > 0 else 0
+                }
+            
+            # Duplicate records (theo amazon_user_id + asin)
+            duplicates = reviews_raw.group_by(["amazon_user_id", "asin"]).agg(pl.count().alias("count"))
+            duplicate_records = duplicates.filter(pl.col("count") > 1)
+            duplicate_count = duplicate_records["count"].sum() - len(duplicate_records) if len(duplicate_records) > 0 else 0
+            
+            # Invalid ratings (ngoài [1, 5])
+            invalid_ratings = reviews_raw.filter(
+                (pl.col("rating") < 1) | (pl.col("rating") > 5) | pl.col("rating").is_null()
+            ).height
+            
+            # Empty text fields
+            empty_review_text = reviews_raw.filter(
+                (pl.col("review_text").is_null()) | (pl.col("review_text").str.strip_chars() == "")
+            ).height
+            
+            stats["reviews"] = {
+                "total_rows": total_rows,
+                "null_values_by_column": null_counts,
+                "duplicate_records": {
+                    "count": duplicate_count,
+                    "percentage": (duplicate_count / total_rows * 100) if total_rows > 0 else 0
+                },
+                "invalid_ratings": {
+                    "count": invalid_ratings,
+                    "percentage": (invalid_ratings / total_rows * 100) if total_rows > 0 else 0
+                },
+                "empty_review_text": {
+                    "count": empty_review_text,
+                    "percentage": (empty_review_text / total_rows * 100) if total_rows > 0 else 0
+                },
+                "data_quality_score": max(0, 100 - (
+                    (duplicate_count / total_rows * 100) if total_rows > 0 else 0 +
+                    (invalid_ratings / total_rows * 100) if total_rows > 0 else 0 +
+                    sum(null_counts.get(col, {}).get("percentage", 0) for col in ["amazon_user_id", "asin", "rating"]) / 3
+                ))
+            }
+        
+        # Metadata Data Quality
+        if metadata_raw_path.exists() and metadata_normalized_path.exists():
+            metadata_raw = pl.read_parquet(str(metadata_raw_path))
+            metadata_normalized = pl.read_parquet(str(metadata_normalized_path))
+            
+            total_rows = len(metadata_raw)
+            
+            # Null values per column
+            null_counts = {}
+            for col in metadata_raw.columns:
+                null_count = metadata_raw.filter(pl.col(col).is_null()).height
+                null_counts[col] = {
+                    "count": null_count,
+                    "percentage": (null_count / total_rows * 100) if total_rows > 0 else 0
+                }
+            
+            # Duplicate records (theo parent_asin)
+            duplicates = metadata_raw.group_by("parent_asin").agg(pl.count().alias("count"))
+            duplicate_records = duplicates.filter(pl.col("count") > 1)
+            duplicate_count = duplicate_records["count"].sum() - len(duplicate_records) if len(duplicate_records) > 0 else 0
+            
+            # Missing title
+            missing_title = metadata_raw.filter(
+                (pl.col("title").is_null()) | (pl.col("title").str.strip_chars() == "")
+            ).height
+            
+            # Missing category (All Beauty hoặc null)
+            missing_category = metadata_raw.filter(
+                (pl.col("main_category").is_null()) | 
+                (pl.col("main_category") == "All Beauty") |
+                (pl.col("main_category").str.strip_chars() == "")
+            ).height
+            
+            stats["metadata"] = {
+                "total_rows": total_rows,
+                "null_values_by_column": null_counts,
+                "duplicate_records": {
+                    "count": duplicate_count,
+                    "percentage": (duplicate_count / total_rows * 100) if total_rows > 0 else 0
+                },
+                "missing_title": {
+                    "count": missing_title,
+                    "percentage": (missing_title / total_rows * 100) if total_rows > 0 else 0
+                },
+                "missing_category": {
+                    "count": missing_category,
+                    "percentage": (missing_category / total_rows * 100) if total_rows > 0 else 0
+                },
+                "data_quality_score": max(0, 100 - (
+                    (duplicate_count / total_rows * 100) if total_rows > 0 else 0 +
+                    (missing_title / total_rows * 100) if total_rows > 0 else 0 +
+                    (missing_category / total_rows * 100) if total_rows > 0 else 0
+                ))
+            }
+        
+        return {
+            "success": True,
+            "data": stats
+        }
+    except Exception as e:
+        logger.error(f"Error getting data quality stats: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/model-metrics")
 async def get_model_metrics():
     """Lấy metrics của model MF từ file JSON."""
