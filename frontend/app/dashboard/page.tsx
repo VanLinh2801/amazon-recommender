@@ -488,87 +488,417 @@ export default function DashboardPage() {
 
             {/* Data Cleaning Tab */}
             <TabsContent value="cleaning" className="space-y-6">
-              <div className="grid gap-6 md:grid-cols-2">
-                {/* Reviews Cleaning */}
-                {cleaningStats?.reviews && (
+              {/* Reviews Cleaning Section */}
+              {cleaningStats?.reviews && (
+                <div className="space-y-6">
+                  <h2 className="text-2xl font-bold">Reviews Cleaning Process</h2>
+                  
+                  <div className="grid gap-6 md:grid-cols-2">
+                    {/* Retention Rate by Task */}
+                    {cleaningStats.reviews.retention_by_task && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Retention Rate Through Cleaning Steps</CardTitle>
+                          <CardDescription>Percentage of records retained after each cleaning task</CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-6">
+                          <div className="w-full" style={{ height: '350px' }}>
+                            <ChartContainer config={chartConfig} className="w-full h-full">
+                              <AreaChart data={cleaningStats.reviews.retention_by_task}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="task" angle={-45} textAnchor="end" height={80} />
+                                <YAxis label={{ value: 'Percentage (%)', angle: -90, position: 'insideLeft' }} />
+                                <ChartTooltip content={<ChartTooltipContent />} />
+                                <Area 
+                                  type="monotone" 
+                                  dataKey="percentage" 
+                                  stroke="#3b82f6" 
+                                  fill="#3b82f6" 
+                                  fillOpacity={0.3}
+                                />
+                              </AreaChart>
+                            </ChartContainer>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Records Dropped by Task */}
+                    {cleaningStats.reviews.tasks && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Records Dropped by Cleaning Task</CardTitle>
+                          <CardDescription>Number of records removed in each cleaning step</CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-6">
+                          <div className="w-full" style={{ height: '350px' }}>
+                            <ChartContainer config={chartConfig} className="w-full h-full">
+                              <BarChart data={[
+                                { task: "Missing Values", dropped: cleaningStats.reviews.tasks.task1_missing_values.dropped },
+                                { task: "Sanity Check", dropped: cleaningStats.reviews.tasks.task2_sanity_check.dropped },
+                                { task: "Deduplication", dropped: cleaningStats.reviews.tasks.task3_deduplication.dropped },
+                              ]}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="task" angle={-45} textAnchor="end" height={80} />
+                                <YAxis />
+                                <ChartTooltip content={<ChartTooltipContent />} />
+                                <Bar dataKey="dropped" radius={[8, 8, 0, 0]}>
+                                  <Cell fill="#ef4444" />
+                                  <Cell fill="#f59e0b" />
+                                  <Cell fill="#ec4899" />
+                                </Bar>
+                              </BarChart>
+                            </ChartContainer>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+
+                  <div className="grid gap-6 md:grid-cols-2">
+                    {/* Rating Distribution Before/After */}
+                    {cleaningStats.reviews.rating_distribution_before && cleaningStats.reviews.rating_distribution_after && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Rating Distribution: Before vs After</CardTitle>
+                          <CardDescription>Comparison of rating distribution before and after cleaning</CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-6">
+                          <div className="w-full" style={{ height: '350px' }}>
+                            <ChartContainer config={chartConfig} className="w-full h-full">
+                              <BarChart data={[1, 2, 3, 4, 5].map(rating => {
+                                const before = cleaningStats.reviews.rating_distribution_before.find((r: any) => r.rating === rating);
+                                const after = cleaningStats.reviews.rating_distribution_after.find((r: any) => r.rating === rating);
+                                return {
+                                  rating: rating,
+                                  before: before?.count || 0,
+                                  after: after?.count || 0
+                                };
+                              })}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="rating" />
+                                <YAxis />
+                                <ChartTooltip content={<ChartTooltipContent />} />
+                                <Legend />
+                                <Bar dataKey="before" name="Before Cleaning" fill="#ef4444" radius={[8, 8, 0, 0]} />
+                                <Bar dataKey="after" name="After Cleaning" fill="#10b981" radius={[8, 8, 0, 0]} />
+                              </BarChart>
+                            </ChartContainer>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Missing Values Breakdown */}
+                    {cleaningStats.reviews.missing_values_breakdown && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Missing Values Breakdown</CardTitle>
+                          <CardDescription>Number of missing values by field before cleaning</CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-6">
+                          <div className="w-full" style={{ height: '350px' }}>
+                            <ChartContainer config={chartConfig} className="w-full h-full">
+                              <BarChart data={Object.entries(cleaningStats.reviews.missing_values_breakdown).map(([key, value]) => ({
+                                field: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                                count: value
+                              }))}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="field" angle={-45} textAnchor="end" height={80} />
+                                <YAxis />
+                                <ChartTooltip content={<ChartTooltipContent />} />
+                                <Bar dataKey="count" fill="#8b5cf6" radius={[8, 8, 0, 0]} />
+                              </BarChart>
+                            </ChartContainer>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+
+                  {/* Summary Stats */}
                   <Card>
                     <CardHeader>
-                      <CardTitle>Reviews Cleaning Process</CardTitle>
-                      <CardDescription>So sánh trước và sau khi clean</CardDescription>
+                      <CardTitle>Reviews Cleaning Summary</CardTitle>
                     </CardHeader>
-                    <CardContent className="p-6">
-                      <div className="w-full" style={{ height: '350px' }}>
-                        <ChartContainer config={chartConfig} className="w-full h-full">
-                          <BarChart data={[
-                            { phase: "Before", count: cleaningStats.reviews.before },
-                            { phase: "After", count: cleaningStats.reviews.after },
-                          ]}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="phase" />
-                            <YAxis />
-                            <ChartTooltip content={<ChartTooltipContent />} />
-                            <Bar dataKey="count" radius={[8, 8, 0, 0]}>
-                              <Cell fill="#ef4444" />
-                              <Cell fill="#10b981" />
-                            </Bar>
-                          </BarChart>
-                        </ChartContainer>
-                      </div>
-                      <div className="mt-4 space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span>Dropped:</span>
-                          <span className="font-semibold">{cleaningStats.reviews.dropped.toLocaleString()}</span>
+                    <CardContent>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                          <div className="text-sm text-muted-foreground">Initial Records</div>
+                          <div className="text-2xl font-bold">{cleaningStats.reviews.before.toLocaleString()}</div>
                         </div>
-                        <div className="flex justify-between">
-                          <span>Retention Rate:</span>
-                          <span className="font-semibold">{cleaningStats.reviews.retention_rate.toFixed(2)}%</span>
+                        <div>
+                          <div className="text-sm text-muted-foreground">Final Records</div>
+                          <div className="text-2xl font-bold text-green-600">{cleaningStats.reviews.after.toLocaleString()}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-muted-foreground">Total Dropped</div>
+                          <div className="text-2xl font-bold text-red-600">{cleaningStats.reviews.dropped.toLocaleString()}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-muted-foreground">Retention Rate</div>
+                          <div className="text-2xl font-bold">{cleaningStats.reviews.retention_rate.toFixed(2)}%</div>
                         </div>
                       </div>
                     </CardContent>
                   </Card>
-                )}
+                </div>
+              )}
 
-                {/* Metadata Cleaning */}
-                {cleaningStats?.metadata && (
+              {/* 5-Core Interactions Section */}
+              {cleaningStats?.interactions_5core && (
+                <div className="space-y-6 mt-8">
+                  <h2 className="text-2xl font-bold">5-Core Interactions Statistics</h2>
+                  
+                  <div className="grid gap-6 md:grid-cols-2">
+                    {/* Filtering Steps Comparison */}
+                    {cleaningStats.interactions_5core.filtering_steps && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Interactions: All vs 5-Core</CardTitle>
+                          <CardDescription>Comparison of interactions before and after 5-core filtering</CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-6">
+                          <div className="w-full" style={{ height: '350px' }}>
+                            <ChartContainer config={chartConfig} className="w-full h-full">
+                              <BarChart data={cleaningStats.interactions_5core.filtering_steps}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="step" />
+                                <YAxis />
+                                <ChartTooltip content={<ChartTooltipContent />} />
+                                <Legend />
+                                <Bar dataKey="count" name="Interactions" fill="#3b82f6" radius={[8, 8, 0, 0]} />
+                                <Bar dataKey="users" name="Users" fill="#8b5cf6" radius={[8, 8, 0, 0]} />
+                                <Bar dataKey="items" name="Items" fill="#ec4899" radius={[8, 8, 0, 0]} />
+                              </BarChart>
+                            </ChartContainer>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Train/Test Split */}
+                    {cleaningStats.interactions_5core.train_test_split && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Train/Test Split</CardTitle>
+                          <CardDescription>Distribution of interactions in train and test sets</CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-6">
+                          <div className="w-full" style={{ height: '350px' }}>
+                            <ChartContainer config={chartConfig} className="w-full h-full">
+                              <PieChart>
+                                <Pie
+                                  data={[
+                                    { name: "Train", value: cleaningStats.interactions_5core.train_test_split.train_count },
+                                    { name: "Test", value: cleaningStats.interactions_5core.train_test_split.test_count }
+                                  ]}
+                                  cx="50%"
+                                  cy="50%"
+                                  labelLine={false}
+                                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+                                  outerRadius={100}
+                                  fill="#8884d8"
+                                  dataKey="value"
+                                >
+                                  <Cell fill="#3b82f6" />
+                                  <Cell fill="#10b981" />
+                                </Pie>
+                                <ChartTooltip content={<ChartTooltipContent />} />
+                              </PieChart>
+                            </ChartContainer>
+                          </div>
+                          <div className="mt-4 space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span>Train:</span>
+                              <span className="font-semibold">{cleaningStats.interactions_5core.train_test_split.train_count.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Test:</span>
+                              <span className="font-semibold">{cleaningStats.interactions_5core.train_test_split.test_count.toLocaleString()}</span>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+
+                  <div className="grid gap-6 md:grid-cols-2">
+                    {/* Rating Distribution in 5-Core */}
+                    {cleaningStats.interactions_5core.rating_distribution && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Rating Distribution (5-Core)</CardTitle>
+                          <CardDescription>Distribution of ratings in 5-core dataset</CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-6">
+                          <div className="w-full" style={{ height: '350px' }}>
+                            <ChartContainer config={chartConfig} className="w-full h-full">
+                              <BarChart data={cleaningStats.interactions_5core.rating_distribution}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="rating" />
+                                <YAxis />
+                                <ChartTooltip content={<ChartTooltipContent />} />
+                                <Bar dataKey="count" fill="#06b6d4" radius={[8, 8, 0, 0]} />
+                              </BarChart>
+                            </ChartContainer>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Retention Rates */}
+                    {cleaningStats.interactions_5core.core_interactions && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Retention Rates</CardTitle>
+                          <CardDescription>Percentage of data retained after 5-core filtering</CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-6">
+                          <div className="w-full" style={{ height: '350px' }}>
+                            <ChartContainer config={chartConfig} className="w-full h-full">
+                              <BarChart data={[
+                                { metric: "Interactions", rate: cleaningStats.interactions_5core.core_interactions.retention_rate },
+                                { metric: "Users", rate: cleaningStats.interactions_5core.core_interactions.users_retention_rate },
+                                { metric: "Items", rate: cleaningStats.interactions_5core.core_interactions.items_retention_rate }
+                              ]}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="metric" />
+                                <YAxis label={{ value: 'Retention Rate (%)', angle: -90, position: 'insideLeft' }} />
+                                <ChartTooltip content={<ChartTooltipContent />} />
+                                <Bar dataKey="rate" fill="#84cc16" radius={[8, 8, 0, 0]} />
+                              </BarChart>
+                            </ChartContainer>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+
+                  {/* Summary Stats */}
                   <Card>
                     <CardHeader>
-                      <CardTitle>Metadata Cleaning Process</CardTitle>
-                      <CardDescription>So sánh trước và sau khi clean</CardDescription>
+                      <CardTitle>5-Core Interactions Summary</CardTitle>
                     </CardHeader>
-                    <CardContent className="p-6">
-                      <div className="w-full" style={{ height: '350px' }}>
-                        <ChartContainer config={chartConfig} className="w-full h-full">
-                          <BarChart data={[
-                            { phase: "Before", count: cleaningStats.metadata.before },
-                            { phase: "After", count: cleaningStats.metadata.after },
-                          ]}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="phase" />
-                            <YAxis />
-                            <ChartTooltip content={<ChartTooltipContent />} />
-                            <Bar dataKey="count" radius={[8, 8, 0, 0]}>
-                              <Cell fill="#ef4444" />
-                              <Cell fill="#10b981" />
-                            </Bar>
-                          </BarChart>
-                        </ChartContainer>
-                      </div>
-                      <div className="mt-4 space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span>Dropped:</span>
-                          <span className="font-semibold">{cleaningStats.metadata.dropped.toLocaleString()}</span>
+                    <CardContent>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                          <div className="text-sm text-muted-foreground">All Interactions</div>
+                          <div className="text-2xl font-bold">{cleaningStats.interactions_5core.all_interactions.count.toLocaleString()}</div>
                         </div>
-                        <div className="flex justify-between">
-                          <span>Retention Rate:</span>
-                          <span className="font-semibold">{cleaningStats.metadata.retention_rate.toFixed(2)}%</span>
+                        <div>
+                          <div className="text-sm text-muted-foreground">5-Core Interactions</div>
+                          <div className="text-2xl font-bold text-green-600">{cleaningStats.interactions_5core.core_interactions.count.toLocaleString()}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-muted-foreground">Unique Users</div>
+                          <div className="text-2xl font-bold">{cleaningStats.interactions_5core.core_interactions.unique_users.toLocaleString()}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-muted-foreground">Unique Items</div>
+                          <div className="text-2xl font-bold">{cleaningStats.interactions_5core.core_interactions.unique_items.toLocaleString()}</div>
                         </div>
                       </div>
                     </CardContent>
                   </Card>
-                )}
+                </div>
+              )}
 
-                {/* Embedding Stats */}
-                {embeddingStats && (
+              {/* Embedding Tokens Section */}
+              {cleaningStats?.embedding_tokens && (
+                <div className="space-y-6 mt-8">
+                  <h2 className="text-2xl font-bold">Embedding Token Statistics</h2>
+                  
+                  <div className="grid gap-6 md:grid-cols-2">
+                    {/* Token Distribution */}
+                    {cleaningStats.embedding_tokens.token_distribution && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Token Distribution</CardTitle>
+                          <CardDescription>Distribution of token counts in embedding text</CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-6">
+                          <div className="w-full" style={{ height: '350px' }}>
+                            <ChartContainer config={chartConfig} className="w-full h-full">
+                              <BarChart data={cleaningStats.embedding_tokens.token_distribution}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="range" />
+                                <YAxis />
+                                <ChartTooltip content={<ChartTooltipContent />} />
+                                <Bar dataKey="count" fill="#f59e0b" radius={[8, 8, 0, 0]} />
+                              </BarChart>
+                            </ChartContainer>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Token Statistics */}
+                    {cleaningStats.embedding_tokens.statistics && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Token Statistics</CardTitle>
+                          <CardDescription>Statistical summary of token counts</CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-6">
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <div className="text-sm text-muted-foreground">Average Tokens</div>
+                                <div className="text-2xl font-bold">{cleaningStats.embedding_tokens.statistics.avg_tokens.toFixed(1)}</div>
+                              </div>
+                              <div>
+                                <div className="text-sm text-muted-foreground">Median Tokens</div>
+                                <div className="text-2xl font-bold">{cleaningStats.embedding_tokens.statistics.median_tokens.toFixed(1)}</div>
+                              </div>
+                              <div>
+                                <div className="text-sm text-muted-foreground">Min Tokens</div>
+                                <div className="text-2xl font-bold">{cleaningStats.embedding_tokens.statistics.min_tokens}</div>
+                              </div>
+                              <div>
+                                <div className="text-sm text-muted-foreground">Max Tokens</div>
+                                <div className="text-2xl font-bold">{cleaningStats.embedding_tokens.statistics.max_tokens}</div>
+                              </div>
+                              <div className="col-span-2">
+                                <div className="text-sm text-muted-foreground">Std Deviation</div>
+                                <div className="text-2xl font-bold">{cleaningStats.embedding_tokens.statistics.std_tokens.toFixed(1)}</div>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+
+                  {/* Summary Stats */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Embedding Tokens Summary</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <div>
+                          <div className="text-sm text-muted-foreground">Total Items</div>
+                          <div className="text-2xl font-bold">{cleaningStats.embedding_tokens.total_items.toLocaleString()}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-muted-foreground">Avg Tokens per Item</div>
+                          <div className="text-2xl font-bold">{cleaningStats.embedding_tokens.statistics.avg_tokens.toFixed(0)}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-muted-foreground">Total Tokens (approx)</div>
+                          <div className="text-2xl font-bold">{(cleaningStats.embedding_tokens.total_items * cleaningStats.embedding_tokens.statistics.avg_tokens).toLocaleString()}</div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {/* Embedding Stats */}
+              {embeddingStats && (
+                <div className="mt-8">
+                  <h2 className="text-2xl font-bold mb-6">Embedding Statistics</h2>
                   <Card>
                     <CardHeader>
                       <CardTitle>Embedding Statistics</CardTitle>
@@ -597,8 +927,8 @@ export default function DashboardPage() {
                       </div>
                     </CardContent>
                   </Card>
-                )}
-              </div>
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         </div>

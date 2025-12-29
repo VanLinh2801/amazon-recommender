@@ -13,9 +13,6 @@ export default function Home() {
   const [recommendations, setRecommendations] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [metrics, setMetrics] = useState<any>(null)
-  const [metricsLoading, setMetricsLoading] = useState(true)
-
   useEffect(() => {
     async function loadData() {
       try {
@@ -60,22 +57,7 @@ export default function Home() {
       }
     }
 
-    async function loadMetrics() {
-      try {
-        setMetricsLoading(true)
-        const data = await api.getModelMetrics()
-        if (data.success && data.data) {
-          setMetrics(data.data)
-        }
-      } catch (error) {
-        console.error("Failed to load metrics:", error)
-      } finally {
-        setMetricsLoading(false)
-      }
-    }
-
     loadData()
-    loadMetrics()
   }, [user])
 
   return (
@@ -106,41 +88,31 @@ export default function Home() {
                   </Button>
                 </div>
               </div>
-              <div className="relative aspect-video rounded-xl overflow-hidden shadow-2xl bg-secondary/50 p-6">
-                {metricsLoading ? (
-                  <div className="flex items-center justify-center h-full">
-                    <span className="text-muted-foreground">Loading metrics...</span>
+              <div className="relative aspect-video rounded-xl overflow-hidden shadow-2xl bg-gradient-to-br from-primary/20 via-primary/10 to-secondary/20 p-8 flex items-center justify-center">
+                <div className="text-center space-y-4">
+                  <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary/20 mb-4">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="40"
+                      height="40"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-primary"
+                    >
+                      <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                      <path d="M2 17l10 5 10-5" />
+                      <path d="M2 12l10 5 10-5" />
+                    </svg>
                   </div>
-                ) : metrics ? (
-                  <div className="h-full flex flex-col justify-center space-y-4">
-                    <h3 className="text-lg font-semibold mb-4">Model Performance Metrics</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-background/50 rounded-lg p-3">
-                        <div className="text-sm text-muted-foreground">RMSE</div>
-                        <div className="text-2xl font-bold">{metrics.rmse?.toFixed(4) || 'N/A'}</div>
-                      </div>
-                      <div className="bg-background/50 rounded-lg p-3">
-                        <div className="text-sm text-muted-foreground">MAE</div>
-                        <div className="text-2xl font-bold">{metrics.mae?.toFixed(4) || 'N/A'}</div>
-                      </div>
-                      <div className="bg-background/50 rounded-lg p-3">
-                        <div className="text-sm text-muted-foreground">Precision@10</div>
-                        <div className="text-2xl font-bold">{(metrics['precision@10'] * 100)?.toFixed(2) || 'N/A'}%</div>
-                      </div>
-                      <div className="bg-background/50 rounded-lg p-3">
-                        <div className="text-sm text-muted-foreground">Recall@10</div>
-                        <div className="text-2xl font-bold">{(metrics['recall@10'] * 100)?.toFixed(2) || 'N/A'}%</div>
-                      </div>
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-2">
-                      Lower RMSE/MAE is better • Higher Precision/Recall is better
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <span className="text-muted-foreground">Metrics not available</span>
-                  </div>
-                )}
+                  <h3 className="text-2xl font-bold">AI-Powered Recommendations</h3>
+                  <p className="text-muted-foreground max-w-md">
+                    Our intelligent system analyzes millions of products to bring you personalized suggestions tailored to your preferences.
+                  </p>
+                </div>
               </div>
             </div>
           </div>

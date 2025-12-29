@@ -471,13 +471,20 @@ async def get_item_popularity(top_n: int = 20):
 
 @router.get("/cleaning-stats")
 async def get_cleaning_stats():
-    """Lấy thống kê về quá trình cleaning."""
+    """Lấy thống kê chi tiết về quá trình cleaning, 5core interactions và embedding tokens."""
     try:
         # Đọc raw và clean data để so sánh
         reviews_normalized_path = PROCESSED_DIR / "reviews_normalized.parquet"
         reviews_clean_path = PROCESSED_DIR / "reviews_clean.parquet"
-        metadata_normalized_path = PROCESSED_DIR / "metadata_normalized.parquet"
-        metadata_clean_path = PROCESSED_DIR / "metadata_clean.parquet"
+        
+        # 5core interactions files
+        interactions_all_path = PROCESSED_DIR / "interactions_all.parquet"
+        interactions_5core_path = PROCESSED_DIR / "interactions_5core.parquet"
+        interactions_5core_train_path = PROCESSED_DIR / "interactions_5core_train.parquet"
+        interactions_5core_test_path = PROCESSED_DIR / "interactions_5core_test.parquet"
+        
+        # Embedding data
+        embedding_text_path = EMBEDDING_DIR / "embedding_text.parquet"
         
         stats = {}
         
@@ -485,22 +492,196 @@ async def get_cleaning_stats():
             reviews_normalized = pl.read_parquet(str(reviews_normalized_path))
             reviews_clean = pl.read_parquet(str(reviews_clean_path))
             
+            initial_count = len(reviews_normalized)
+            final_count = len(reviews_clean)
+            
+            # Tính toán chi tiết từng task
+            # Task 1: Missing values - drop records thiếu amazon_user_id, asin, rating
+            task1_dropped = initial_count - len(
+                reviews_normalized.filter(
+                    pl.col("amazon_user_id").is_not_null() &
+                    pl.col("asin").is_not_null() &
+                    pl.col("rating").is_not_null()
+                )
+            )
+            
+            # Task 2: Sanity check - rating ngoài [1, 5]
+            after_task1 = reviews_normalized.filter(
+                pl.col("amazon_user_id").is_not_null() &
+                pl.col("asin").is_not_null() &
+                pl.col("rating").is_not_null()
+            )
+            task2_dropped = len(after_task1) - len(
+                after_task1.filter(
+                    (pl.col("rating") >= 1) & (pl.col("rating") <= 5)
+                )
+            )
+            
+            # Task 3: Deduplication (ước tính)
+            after_task2 = after_task1.filter(
+                (pl.col("rating") >= 1) & (pl.col("rating") <= 5)
+            )
+            # Đếm duplicates theo (amazon_user_id, asin)
+            duplicates = after_task2.group_by(["amazon_user_id", "asin"]).agg(pl.count().alias("count"))
+            duplicates_count = duplicates.filter(pl.col("count") > 1)
+            task3_dropped = duplicates_count["count"].sum() - len(duplicates_count) if len(duplicates_count) > 0 else 0
+            
+            # Rating distribution trước và sau
+            rating_dist_before = reviews_normalized.group_by("rating").agg(pl.count().alias("count")).sort("rating")
+            rating_dist_after = reviews_clean.group_by("rating").agg(pl.count().alias("count")).sort("rating")
+            
+            # Missing values breakdown
+            missing_breakdown = {
+                "amazon_user_id": reviews_normalized.filter(pl.col("amazon_user_id").is_null()).height,
+                "asin": reviews_normalized.filter(pl.col("asin").is_null()).height,
+                "rating": reviews_normalized.filter(pl.col("rating").is_null()).height,
+                "review_title": reviews_normalized.filter(pl.col("review_title").is_null()).height,
+                "review_text": reviews_normalized.filter(pl.col("review_text").is_null()).height,
+            }
+            
             stats["reviews"] = {
-                "before": len(reviews_normalized),
-                "after": len(reviews_clean),
-                "dropped": len(reviews_normalized) - len(reviews_clean),
-                "retention_rate": len(reviews_clean) / len(reviews_normalized) * 100
+                "before": initial_count,
+                "after": final_count,
+                "dropped": initial_count - final_count,
+                "retention_rate": (final_count / initial_count * 100) if initial_count > 0 else 0,
+                "tasks": {
+                    "task1_missing_values": {
+                        "dropped": task1_dropped,
+                        "percentage": (task1_dropped / initial_count * 100) if initial_count > 0 else 0
+                    },
+                    "task2_sanity_check": {
+                        "dropped": task2_dropped,
+                        "percentage": (task2_dropped / initial_count * 100) if initial_count > 0 else 0
+                    },
+                    "task3_deduplication": {
+                        "dropped": task3_dropped,
+                        "percentage": (task3_dropped / initial_count * 100) if initial_count > 0 else 0
+                    }
+                },
+                "rating_distribution_before": [
+                    {"rating": float(row["rating"]), "count": int(row["count"])}
+                    for row in rating_dist_before.to_dicts()
+                ],
+                "rating_distribution_after": [
+                    {"rating": float(row["rating"]), "count": int(row["count"])}
+                    for row in rating_dist_after.to_dicts()
+                ],
+                "missing_values_breakdown": missing_breakdown,
+                "retention_by_task": [
+                    {"task": "Initial", "count": initial_count, "percentage": 100.0},
+                    {"task": "After Task 1", "count": initial_count - task1_dropped, "percentage": ((initial_count - task1_dropped) / initial_count * 100) if initial_count > 0 else 0},
+                    {"task": "After Task 2", "count": initial_count - task1_dropped - task2_dropped, "percentage": ((initial_count - task1_dropped - task2_dropped) / initial_count * 100) if initial_count > 0 else 0},
+                    {"task": "After Task 3", "count": initial_count - task1_dropped - task2_dropped - task3_dropped, "percentage": ((initial_count - task1_dropped - task2_dropped - task3_dropped) / initial_count * 100) if initial_count > 0 else 0},
+                    {"task": "Final", "count": final_count, "percentage": (final_count / initial_count * 100) if initial_count > 0 else 0}
+                ]
             }
         
-        if metadata_normalized_path.exists() and metadata_clean_path.exists():
-            metadata_normalized = pl.read_parquet(str(metadata_normalized_path))
-            metadata_clean = pl.read_parquet(str(metadata_clean_path))
+        # 5-Core Interactions Statistics
+        if interactions_all_path.exists() and interactions_5core_path.exists():
+            interactions_all = pl.read_parquet(str(interactions_all_path))
+            interactions_5core = pl.read_parquet(str(interactions_5core_path))
             
-            stats["metadata"] = {
-                "before": len(metadata_normalized),
-                "after": len(metadata_clean),
-                "dropped": len(metadata_normalized) - len(metadata_clean),
-                "retention_rate": len(metadata_clean) / len(metadata_normalized) * 100
+            all_count = len(interactions_all)
+            core_count = len(interactions_5core)
+            
+            # Train/Test split stats
+            train_count = 0
+            test_count = 0
+            if interactions_5core_train_path.exists() and interactions_5core_test_path.exists():
+                train_df = pl.read_parquet(str(interactions_5core_train_path))
+                test_df = pl.read_parquet(str(interactions_5core_test_path))
+                train_count = len(train_df)
+                test_count = len(test_df)
+            
+            # User and item statistics
+            all_users = interactions_all["user_id"].n_unique()
+            all_items = interactions_all["item_id"].n_unique()
+            core_users = interactions_5core["user_id"].n_unique()
+            core_items = interactions_5core["item_id"].n_unique()
+            
+            # Rating distribution in 5core
+            rating_dist_5core = interactions_5core.group_by("rating").agg(pl.count().alias("count")).sort("rating")
+            
+            stats["interactions_5core"] = {
+                "all_interactions": {
+                    "count": all_count,
+                    "unique_users": all_users,
+                    "unique_items": all_items
+                },
+                "core_interactions": {
+                    "count": core_count,
+                    "unique_users": core_users,
+                    "unique_items": core_items,
+                    "retention_rate": (core_count / all_count * 100) if all_count > 0 else 0,
+                    "users_retention_rate": (core_users / all_users * 100) if all_users > 0 else 0,
+                    "items_retention_rate": (core_items / all_items * 100) if all_items > 0 else 0
+                },
+                "train_test_split": {
+                    "train_count": train_count,
+                    "test_count": test_count,
+                    "train_ratio": (train_count / (train_count + test_count) * 100) if (train_count + test_count) > 0 else 0,
+                    "test_ratio": (test_count / (train_count + test_count) * 100) if (train_count + test_count) > 0 else 0
+                },
+                "rating_distribution": [
+                    {"rating": float(row["rating"]), "count": int(row["count"])}
+                    for row in rating_dist_5core.to_dicts()
+                ],
+                "filtering_steps": [
+                    {"step": "All Interactions", "count": all_count, "users": all_users, "items": all_items},
+                    {"step": "5-Core Filtered", "count": core_count, "users": core_users, "items": core_items}
+                ]
+            }
+        
+        # Embedding Token Statistics
+        if embedding_text_path.exists():
+            embedding_df = pl.read_parquet(str(embedding_text_path))
+            
+            # Count tokens in embedding_text (simple word count)
+            if "embedding_text" in embedding_df.columns:
+                # Calculate approximate token counts (split by spaces)
+                token_counts = embedding_df.select([
+                    pl.col("embedding_text").str.split(" ").list.len().alias("token_count")
+                ])
+                
+                token_stats = token_counts.select([
+                    pl.col("token_count").mean().alias("avg_tokens"),
+                    pl.col("token_count").median().alias("median_tokens"),
+                    pl.col("token_count").min().alias("min_tokens"),
+                    pl.col("token_count").max().alias("max_tokens"),
+                    pl.col("token_count").std().alias("std_tokens")
+                ]).to_dicts()[0]
+                
+                # Token distribution (bins)
+                token_counts_list = token_counts["token_count"].to_list()
+                bins = [0, 50, 100, 200, 300, 500, 1000]
+                bin_labels = ["0-50", "51-100", "101-200", "201-300", "301-500", "501-1000", "1000+"]
+                token_distribution = []
+                
+                for i in range(len(bins)):
+                    if i < len(bins) - 1:
+                        bin_min, bin_max = bins[i], bins[i + 1]
+                        count = sum(1 for tc in token_counts_list if bin_min <= tc < bin_max)
+                    else:
+                        # Last bin: >= 1000
+                        count = sum(1 for tc in token_counts_list if tc >= bins[-1])
+                    
+                    if count > 0:
+                        token_distribution.append({
+                            "range": bin_labels[i],
+                            "count": count,
+                            "percentage": (count / len(token_counts_list) * 100) if token_counts_list else 0
+                        })
+                
+                stats["embedding_tokens"] = {
+                    "total_items": len(embedding_df),
+                    "statistics": {
+                        "avg_tokens": float(token_stats["avg_tokens"]) if token_stats["avg_tokens"] else 0,
+                        "median_tokens": float(token_stats["median_tokens"]) if token_stats["median_tokens"] else 0,
+                        "min_tokens": int(token_stats["min_tokens"]) if token_stats["min_tokens"] else 0,
+                        "max_tokens": int(token_stats["max_tokens"]) if token_stats["max_tokens"] else 0,
+                        "std_tokens": float(token_stats["std_tokens"]) if token_stats["std_tokens"] else 0
+                    },
+                    "token_distribution": token_distribution
             }
         
         return {
@@ -508,7 +689,7 @@ async def get_cleaning_stats():
             "data": stats
         }
     except Exception as e:
-        logger.error(f"Error getting cleaning stats: {e}")
+        logger.error(f"Error getting cleaning stats: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
