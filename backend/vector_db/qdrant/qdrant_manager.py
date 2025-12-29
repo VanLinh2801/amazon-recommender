@@ -386,42 +386,34 @@ class QdrantManager:
             else:
                 raise ValueError("Query vector có norm = 0, không thể normalize")
             
-            # Sử dụng query_points API (API đúng của qdrant-client)
+            # Sử dụng search API (API đúng của qdrant-client)
             # Với cosine similarity, Qdrant sẽ tính dot product (vì cả 2 vectors đã normalize)
-            query_params = {
-                'collection_name': self.collection_name,
-                'query': query_vector.tolist(),  # Query vector đã được normalize
-                'limit': top_k
-            }
             
-            # Thêm score_threshold nếu có
-            if score_threshold is not None:
-                query_params['score_threshold'] = score_threshold
-            
-            query_response = self.client.query_points(**query_params)
+            query_response = self.client.search(
+                collection_name=self.collection_name,
+                query_vector=query_vector.tolist(),  # Query vector đã được normalize
+                limit=top_k,
+                score_threshold=score_threshold
+            )
             
             results = []
-            # query_points trả về QueryResponse với attribute points
-            if hasattr(query_response, 'points'):
-                for result in query_response.points:
-                    # Lấy item_id từ payload nếu có, nếu không thì dùng id (integer)
-                    item_id = result.payload.get('item_id', str(result.id)) if result.payload else str(result.id)
-                    results.append({
-                        'id': result.id,  # Integer ID trong Qdrant
-                        'item_id': item_id,  # String item_id gốc
-                        'score': result.score,
-                        'payload': result.payload
-                    })
-            elif hasattr(query_response, '__iter__'):
-                # Nếu query_response là iterable trực tiếp
-                for result in query_response:
-                    item_id = result.payload.get('item_id', str(result.id)) if result.payload else str(result.id)
-                    results.append({
-                        'id': result.id,
-                        'item_id': item_id,
-                        'score': result.score,
-                        'payload': result.payload
-                    })
+            # search API trả về list of ScoredPoint
+            for result in query_response:
+                # Lấy item_id từ payload nếu có, nếu không thì dùng id (integer)
+                item_id = None
+                if result.payload:
+                    item_id = result.payload.get('item_id') or result.payload.get('parent_asin')
+                
+                if not item_id:
+                    # Nếu không có trong payload, thử convert id sang string
+                    item_id = str(result.id)
+                
+                results.append({
+                    'id': result.id,  # Integer ID trong Qdrant
+                    'item_id': item_id,  # String item_id gốc
+                    'score': result.score,
+                    'payload': result.payload
+                })
             
             return results
             
@@ -442,6 +434,16 @@ class QdrantManager:
             Vector embedding hoặc None nếu không tìm thấy
         """
         try:
+            # Đảm bảo item_id là string (không phải list)
+            if isinstance(item_id, list):
+                if len(item_id) > 0:
+                    item_id = str(item_id[0])
+                else:
+                    print(f"[ERROR] item_id là list rỗng")
+                    return None
+            else:
+                item_id = str(item_id)
+            
             # Convert item_id thành integer ID
             point_id = self._item_id_to_int(item_id)
             
@@ -468,12 +470,14 @@ class QdrantManager:
                     # Thử cách khác: scroll với filter
                     return self._get_item_vector_by_payload(item_id)
             else:
-                print(f"[WARNING] Không tìm thấy point với ID {point_id} (item_id: {item_id})")
+                # Không log warning vì có thể item chưa được load vào Qdrant (bình thường)
                 # Thử cách khác: scroll với filter theo payload
                 return self._get_item_vector_by_payload(item_id)
                 
         except Exception as e:
-            print(f"[ERROR] Lỗi khi lấy vector bằng retrieve: {e}")
+            # Chỉ log error nếu không phải là lỗi "not found" (có thể là lỗi khác)
+            if "not found" not in str(e).lower() and "encode" not in str(e).lower():
+                print(f"[ERROR] Lỗi khi lấy vector bằng retrieve: {e}")
             # Thử cách khác: scroll với filter
             return self._get_item_vector_by_payload(item_id)
     
@@ -489,6 +493,16 @@ class QdrantManager:
             Vector embedding hoặc None nếu không tìm thấy
         """
         try:
+            # Đảm bảo item_id là string (không phải list)
+            if isinstance(item_id, list):
+                if len(item_id) > 0:
+                    item_id = str(item_id[0])
+                else:
+                    print(f"[ERROR] item_id là list rỗng")
+                    return None
+            else:
+                item_id = str(item_id)
+            
             # Scroll với filter theo payload item_id
             scroll_result = self.client.scroll(
                 collection_name=self.collection_name,
@@ -512,11 +526,13 @@ class QdrantManager:
                         print(f"[OK] Đã lấy vector bằng scroll filter cho item {item_id}")
                         return vector
             
-            print(f"[ERROR] Không tìm thấy vector cho item_id: {item_id}")
+            # Không log error vì có thể item chưa được load vào Qdrant (bình thường)
             return None
             
         except Exception as e:
-            print(f"[ERROR] Lỗi khi lấy vector bằng scroll filter: {e}")
+            # Chỉ log error nếu không phải là validation error (đã được xử lý ở trên)
+            if "validation" not in str(e).lower() and "MatchValue" not in str(e):
+                print(f"[ERROR] Lỗi khi lấy vector bằng scroll filter: {e}")
             return None
     
     def test_search(self, item_ids: List[str], top_k: int = 10) -> bool:

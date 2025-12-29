@@ -309,7 +309,7 @@ class ReRankingService:
         """
         # Lấy rating_number từ item
         rating_number = item.rating_number
-        if rating_number is None and item.raw_signals:
+        if rating_number is None and hasattr(item, 'raw_signals') and item.raw_signals:
             rating_number = item.raw_signals.get('rating_number')
         
         if rating_number is not None and rating_number < self.min_rating_threshold:
@@ -362,11 +362,11 @@ class ReRankingService:
             
             # Lấy metadata từ item
             category = item.category
-            if not category and item.raw_signals:
+            if not category and hasattr(item, 'raw_signals') and item.raw_signals:
                 category = item.raw_signals.get('category') or item.raw_signals.get('main_category')
             
             rating_number = item.rating_number
-            if rating_number is None and item.raw_signals:
+            if rating_number is None and hasattr(item, 'raw_signals') and item.raw_signals:
                 rating_number = item.raw_signals.get('rating_number')
             
             # Rule 1: Intent boost
@@ -485,7 +485,7 @@ class ReRankingService:
         for item in reranked_items_sorted:
             # Lấy parent_asin từ raw_signals hoặc từ item_id (nếu item_id là parent_asin)
             parent_asin = None
-            if item.raw_signals:
+            if hasattr(item, 'raw_signals') and item.raw_signals:
                 parent_asin = item.raw_signals.get('parent_asin')
             
             # Nếu không có parent_asin trong raw_signals, giả định item_id có thể là parent_asin

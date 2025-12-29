@@ -36,7 +36,7 @@ class UserHistoryService:
         try:
             result = await db.execute(
                 text("""
-                    SELECT DISTINCT ci.asin
+                    SELECT DISTINCT ci.asin, sc.created_at
                     FROM cart_items ci
                     JOIN shopping_carts sc ON ci.cart_id = sc.id
                     WHERE sc.user_id = :user_id

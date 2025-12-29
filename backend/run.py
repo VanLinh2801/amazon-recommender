@@ -10,7 +10,8 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", "8000"))
     
     # Chỉ dùng reload trong development
-    is_development = os.getenv("ENVIRONMENT", "production").lower() == "development"
+    # Mặc định là development để có auto-reload
+    is_development = os.getenv("ENVIRONMENT", "development").lower() == "development"
     reload = is_development
     
     print("\n" + "=" * 60)

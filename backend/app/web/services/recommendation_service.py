@@ -107,23 +107,48 @@ class RecommendationService:
         logger.info(f"Generating recommendations for user_id: {user_id}")
         
         # Step 1: Recall (với content-based recall nếu có reference items)
-        # Lấy recent items từ Redis để exclude khỏi Popularity recall
+        # Lấy user history từ Redis và PostgreSQL để cải thiện recommendations
         exclude_recent_items = None
+        user_reference_items_from_history = None
+        
         try:
-            # Import ở đây để tránh circular import
+            # Import services
             from app.recommender.reranking_service import ReRankingService
+            from app.web.services.user_interaction_service import get_user_interaction_service
+            
+            # Lấy recent items từ Redis để exclude
             temp_reranking = ReRankingService()
             exclude_recent_items = temp_reranking._load_recent_items(user_id)
             if exclude_recent_items:
                 logger.info(f"Excluding {len(exclude_recent_items)} recent items from Popularity recall")
+            
+            # Lấy user history để dùng làm reference items cho content-based recall
+            # (chỉ lấy nếu chưa có user_reference_items từ parameter)
+            if not user_reference_items:
+                try:
+                    # Import db session (cần async context)
+                    from app.web.utils.database import get_db
+                    # Note: Cần async context, sẽ lấy trong route handler
+                    # Tạm thời chỉ dùng Redis data
+                    interaction_service = get_user_interaction_service()
+                    recent_items = interaction_service.get_recent_items_from_redis(int(user_id), limit=20)
+                    if recent_items:
+                        user_reference_items_from_history = recent_items
+                        logger.info(f"Using {len(recent_items)} recent items from Redis as reference for content recall")
+                except Exception as e:
+                    logger.debug(f"Could not load user history: {e}")
+                    
         except Exception as e:
             logger.debug(f"Could not load recent items from Redis: {e}")
             exclude_recent_items = None
         
+        # Sử dụng user_reference_items từ history nếu chưa có
+        final_user_reference_items = user_reference_items or user_reference_items_from_history
+        
         candidate_item_ids = self.recall_service.recall_candidates(
             user_id=user_id,
             reference_item_id=reference_item_id,
-            user_reference_items=user_reference_items,
+            user_reference_items=final_user_reference_items,  # Dùng history nếu có
             exclude_recent_items=exclude_recent_items,  # Exclude items đã xem
             use_only_content_recall=use_only_content_recall  # Chỉ dùng Content recall cho product detail
         )

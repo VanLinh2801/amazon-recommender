@@ -27,6 +27,16 @@ if sys.platform == "win32":
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
+# Load .env file if exists
+try:
+    from dotenv import load_dotenv
+    env_path = BASE_DIR / ".env"
+    if env_path.exists():
+        load_dotenv(dotenv_path=env_path)
+        print(f"✅ Loaded .env file from {env_path}")
+except ImportError:
+    pass
+
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
 
@@ -37,24 +47,27 @@ from app.db.init_postgres import (
 )
 
 
-def convert_to_asyncpg_url(url: str) -> str:
+def normalize_database_url(url: str) -> str:
     """
-    Convert PostgreSQL URL sang asyncpg format nếu cần.
+    Chuẩn hóa database URL:
+    - Convert postgresql:// -> postgresql+asyncpg://
+    - Thêm port 5432 nếu thiếu cho Render database
+    """
+    # Convert postgresql:// -> postgresql+asyncpg://
+    if url.startswith("postgresql://") and "+asyncpg" not in url:
+        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
     
-    Args:
-        url: Connection string (có thể là postgresql:// hoặc postgresql+asyncpg://)
-        
-    Returns:
-        Connection string với asyncpg driver
-    """
-    if url.startswith("postgresql://"):
-        # Convert sang postgresql+asyncpg://
-        return url.replace("postgresql://", "postgresql+asyncpg://", 1)
-    elif url.startswith("postgresql+asyncpg://"):
-        # Đã đúng format
-        return url
-    else:
-        raise ValueError(f"Invalid database URL format: {url}")
+    # Nếu là Render database và thiếu port, thêm port 5432
+    if "render.com" in url.lower() and ":5432" not in url:
+        # Tìm vị trí sau @ và trước /
+        if "@" in url and "/" in url:
+            at_pos = url.rfind("@")
+            slash_pos = url.find("/", at_pos)
+            if slash_pos > at_pos:
+                # Chèn :5432 trước dấu /
+                url = url[:slash_pos] + ":5432" + url[slash_pos:]
+    
+    return url
 
 
 async def setup_database(database_url: str, load_data: bool = False):
@@ -69,12 +82,8 @@ async def setup_database(database_url: str, load_data: bool = False):
     print("SETUP DATABASE")
     print("=" * 80)
     
-    # Convert URL nếu cần
-    try:
-        async_url = convert_to_asyncpg_url(database_url)
-    except ValueError as e:
-        print(f"❌ ERROR: {e}")
-        return False
+    # Normalize URL
+    async_url = normalize_database_url(database_url)
     
     # Ẩn password trong log
     safe_url = database_url.split("@")[1] if "@" in database_url else database_url
@@ -90,7 +99,13 @@ async def setup_database(database_url: str, load_data: bool = False):
     
     # Tạo engine
     try:
-        engine = create_async_engine(async_url, echo=False)
+        # Kiểm tra xem có phải Render database không (cần SSL)
+        connect_args = {}
+        if "render.com" in async_url.lower():
+            connect_args = {"ssl": "require"}
+            print("📍 Phát hiện Render database - sử dụng SSL connection")
+        
+        engine = create_async_engine(async_url, echo=False, connect_args=connect_args)
         print("\n[0] Đang kết nối database...")
         
         # Test connection

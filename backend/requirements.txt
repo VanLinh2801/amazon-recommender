@@ -17,6 +17,7 @@ torch
 bcrypt
 python-jose[cryptography]
 redis
+python-dotenv
 
 
 

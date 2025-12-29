@@ -263,7 +263,109 @@ def clean_metadata(metadata_df: pl.DataFrame) -> tuple[pl.DataFrame, dict]:
     ])
     print("  Cast: avg_rating → Float64, rating_number → Int64")
     
-    # Task 5: Feature pruning
+    # Task 5: Category cleaning and normalization
+    print("\n[Task 5] Category cleaning and normalization...")
+    import json
+    
+    def extract_and_normalize_category(raw_metadata_str: str, current_category: str) -> str:
+        """
+        Extract và normalize category từ raw_metadata.
+        
+        Logic:
+        1. Nếu main_category là "All Beauty" (tên dataset), cố gắng extract từ raw_metadata
+        2. Extract từ categories list nếu có
+        3. Extract từ details nếu có
+        4. Nếu không tìm thấy, giữ nguyên hoặc set thành "Beauty" (generic)
+        """
+        if current_category and current_category != "All Beauty":
+            return current_category
+        
+        if not raw_metadata_str:
+            return "Beauty"  # Default category
+        
+        try:
+            raw = json.loads(raw_metadata_str)
+            
+            # Thử extract từ categories list
+            categories = raw.get("categories", [])
+            if categories and len(categories) > 0:
+                # categories thường là nested list: [["Beauty", "Personal Care", "Hair Care"]]
+                # Lấy category đầu tiên của level đầu tiên
+                if isinstance(categories[0], list) and len(categories[0]) > 0:
+                    cat = categories[0][0]
+                    if cat and cat != "All Beauty":
+                        return cat
+                elif isinstance(categories[0], str):
+                    cat = categories[0]
+                    if cat and cat != "All Beauty":
+                        return cat
+            
+            # Thử extract từ details
+            details = raw.get("details", {})
+            if isinstance(details, dict):
+                # Tìm các keys liên quan đến category
+                for key in ["category", "main_category", "product_category", "category_name"]:
+                    if key in details:
+                        cat = details[key]
+                        if cat and cat != "All Beauty":
+                            return str(cat)
+            
+            # Nếu vẫn không tìm thấy, thử extract từ title (keyword-based)
+            title = raw.get("title", "").lower()
+            category_keywords = {
+                "hair": "Hair Care",
+                "skin": "Skin Care",
+                "makeup": "Makeup",
+                "fragrance": "Fragrance",
+                "nail": "Nail Care",
+                "bath": "Bath & Body",
+                "oral": "Oral Care",
+                "shave": "Shaving",
+                "wig": "Hair Care",
+                "cleansing": "Skin Care",
+                "moisturizer": "Skin Care",
+                "serum": "Skin Care",
+                "lip": "Makeup",
+                "eye": "Makeup",
+                "foundation": "Makeup",
+                "perfume": "Fragrance",
+                "cologne": "Fragrance",
+            }
+            
+            for keyword, category in category_keywords.items():
+                if keyword in title:
+                    return category
+            
+            # Default: Beauty
+            return "Beauty"
+            
+        except (json.JSONDecodeError, KeyError, IndexError, TypeError):
+            # Nếu có lỗi, giữ nguyên hoặc return default
+            return "Beauty"
+    
+    # Apply category normalization
+    before_cat_normalization = len(current_df.filter(pl.col("main_category") == "All Beauty"))
+    
+    current_df = current_df.with_columns([
+        pl.struct(["raw_metadata", "main_category"]).map_elements(
+            lambda x: extract_and_normalize_category(x["raw_metadata"], x["main_category"]),
+            return_dtype=pl.Utf8
+        ).alias("main_category")
+    ])
+    
+    after_cat_normalization = len(current_df.filter(pl.col("main_category") == "All Beauty"))
+    normalized_count = before_cat_normalization - after_cat_normalization
+    
+    # Thống kê category distribution
+    cat_dist = current_df.group_by("main_category").agg(pl.count().alias("count")).sort("count", descending=True)
+    print(f"  Normalized {normalized_count:,} products từ 'All Beauty' sang category cụ thể")
+    print(f"  Category distribution:")
+    for row in cat_dist.head(10).to_dicts():
+        print(f"    {row['main_category']}: {row['count']:,}")
+    
+    stats["task5_normalized"] = normalized_count
+    
+    # Task 6: Feature pruning
     print("\n[Task 5] Feature pruning...")
     columns_to_keep = [
         "parent_asin",
@@ -370,6 +472,8 @@ def main():
     print(f"Task 1 (Missing values): -{metadata_stats['task1_dropped']:,}")
     print(f"Task 2 (Sanity check): -{metadata_stats['task2_dropped']:,}")
     print(f"Task 3 (Deduplication): -{metadata_stats['task3_dropped']:,}")
+    if 'task5_normalized' in metadata_stats:
+        print(f"Task 5 (Category normalization): {metadata_stats['task5_normalized']:,} products normalized")
     print(f"Tổng số bị loại: {metadata_stats['total_dropped']:,} ({metadata_stats['total_dropped']/metadata_stats['initial']*100:.2f}%)")
     print("\nSchema:")
     print(metadata_clean.schema)

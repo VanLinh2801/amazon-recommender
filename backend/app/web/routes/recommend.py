@@ -6,6 +6,8 @@ API endpoints để lấy recommendations cho user.
 """
 
 import logging
+import asyncio
+import concurrent.futures
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,27 +26,26 @@ router = APIRouter(prefix="/api/recommend", tags=["recommendations"])
 
 
 @router.get(
-    "/",
+    "",
     response_model=RecommendResponse,
     summary="Get recommendations for user",
     description="""
-    Lấy recommendations cho user sử dụng full pipeline:
-    Recall -> Ranking -> Re-ranking
-    
-    Yêu cầu authentication (user_id từ JWT token).
+    Lấy recommendations cho user.
+    - Nếu đã đăng nhập: Sử dụng full pipeline (MF + Popularity + Content recall)
+    - Nếu chưa đăng nhập: Chỉ dùng Popularity recall (top popular items)
     """
 )
 async def get_recommendations(
     top_n: Optional[int] = Query(20, ge=1, le=100, description="Number of recommendations"),
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: Optional[UserResponse] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Lấy recommendations cho user hiện tại.
+    Lấy recommendations cho user.
     
     Args:
         top_n: Số lượng recommendations
-        current_user: Current user (từ JWT token)
+        current_user: Current user (optional, từ JWT token nếu có)
         db: Database session
         
     Returns:
@@ -54,6 +55,116 @@ async def get_recommendations(
         # Get recommendation service
         recommendation_service = get_recommendation_service(top_n=top_n)
         
+        # Nếu chưa đăng nhập, chỉ dùng Popularity recall
+        if not current_user:
+            logger.info("User not logged in, using popularity-only recommendations")
+            
+            # Generate recommendations chỉ với Popularity recall (không dùng MF và Content recall)
+            # Sử dụng user_id="anonymous" và không có reference items
+            loop = asyncio.get_event_loop()
+            
+            try:
+                # Chạy trong thread pool với timeout 90 giây
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = loop.run_in_executor(
+                        executor,
+                        recommendation_service.generate_recommendations,
+                        "anonymous",  # Dummy user_id cho anonymous users
+                        top_n,
+                        None,  # Không có user_reference_items
+                        1.0,  # content_score_boost
+                        False  # use_only_content_recall = False (vẫn dùng Popularity recall)
+                    )
+                    reranked_items, recall_count, ranking_count = await asyncio.wait_for(
+                        future,
+                        timeout=90.0  # 90 giây timeout
+                    )
+            except asyncio.TimeoutError:
+                logger.error("Recommendation generation timeout for anonymous user")
+                raise HTTPException(
+                    status_code=504,
+                    detail="Recommendation generation timeout. Please try again."
+                )
+            except Exception as e:
+                logger.error(f"Error generating recommendations for anonymous user: {e}", exc_info=True)
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to generate recommendations: {str(e)}"
+                )
+            
+            if not reranked_items:
+                return RecommendResponse(
+                    user_id=0,
+                    recommendations=[],
+                    total=0,
+                    recall_count=0,
+                    ranking_count=0
+                )
+            
+            # Lấy ASINs từ recommendations
+            asins = [item.item_id for item in reranked_items]
+            logger.info(f"Fetching details for {len(asins)} items from database (anonymous user)")
+            
+            # Lấy item details từ database
+            items = []
+            try:
+                items = await ItemService.get_items_by_asins(db, asins)
+                logger.info(f"Successfully fetched {len(items)} items from database")
+            except Exception as e:
+                logger.error(f"Error fetching items from database: {e}", exc_info=True)
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
+                items = []
+            
+            if not items:
+                logger.warning(f"No items found in database for {len(asins)} ASINs")
+                return RecommendResponse(
+                    user_id=0,
+                    recommendations=[],
+                    total=0,
+                    recall_count=recall_count,
+                    ranking_count=ranking_count
+                )
+            
+            # Tạo mapping ASIN -> ItemResponse
+            item_map = {item.asin: item for item in items}
+            
+            # Tạo recommendations
+            recommendations = []
+            rank_counter = 1
+            for reranked_item in reranked_items:
+                item = item_map.get(reranked_item.item_id)
+                
+                if item:
+                    recommendations.append(RecommendedItemResponse(
+                        asin=item.asin,
+                        title=item.title,
+                        main_category=item.main_category,
+                        avg_rating=item.avg_rating,
+                        rating_number=item.rating_number,
+                        primary_image=item.primary_image,
+                        score=reranked_item.adjusted_score,
+                        rank=rank_counter,
+                        applied_rules=reranked_item.applied_rules
+                    ))
+                    rank_counter += 1
+                    
+                    if len(recommendations) >= top_n:
+                        break
+            
+            logger.info(f"Generated {len(recommendations)} popularity recommendations for anonymous user")
+            
+            return RecommendResponse(
+                user_id=0,
+                recommendations=recommendations,
+                total=len(recommendations),
+                recall_count=recall_count,
+                ranking_count=ranking_count
+            )
+        
+        # User đã đăng nhập - sử dụng full pipeline
         # Lấy amazon_user_id từ database (cần cho MF recall)
         from sqlalchemy import text
         result = await db.execute(
@@ -89,12 +200,37 @@ async def get_recommendations(
         
         # Generate recommendations (vẫn có recommendations từ Popularity recall nếu không có history)
         logger.info(f"Generating recommendations for user {current_user.id} (amazon_user_id: {user_id_for_recall})")
-        reranked_items, recall_count, ranking_count = recommendation_service.generate_recommendations(
-            user_id=user_id_for_recall,
-            top_n=top_n,
-            user_reference_items=user_reference_items if user_reference_items else None,
-            content_score_boost=1.5  # Boost nhẹ cho homepage
-        )
+        
+        # Chạy recommendation generation trong thread pool để không block event loop
+        loop = asyncio.get_event_loop()
+        
+        try:
+            # Chạy trong thread pool với timeout 90 giây
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = loop.run_in_executor(
+                    executor,
+                recommendation_service.generate_recommendations,
+                user_id_for_recall,
+                top_n,
+                user_reference_items if user_reference_items else user_reference_items_from_history,
+                1.5  # content_score_boost
+            )
+                reranked_items, recall_count, ranking_count = await asyncio.wait_for(
+                    future,
+                    timeout=90.0  # 90 giây timeout
+                )
+        except asyncio.TimeoutError:
+            logger.error(f"Recommendation generation timeout for user {current_user.id}")
+            raise HTTPException(
+                status_code=504,
+                detail="Recommendation generation timeout. Please try again."
+            )
+        except Exception as e:
+            logger.error(f"Error generating recommendations: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to generate recommendations: {str(e)}"
+            )
         
         logger.info(
             f"Recommendation generation result: "

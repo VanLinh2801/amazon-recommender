@@ -137,20 +137,70 @@ class RecallService:
         if self._popularity_df is not None:
             return  # Đã load rồi
         
-        popularity_path = self.artifacts_dir / "popularity" / "item_popularity_normalized.parquet"
-        if not popularity_path.exists():
-            raise FileNotFoundError(f"Không tìm thấy: {popularity_path}")
+        # Tìm file ở nhiều nơi (fallback)
+        possible_paths = [
+            self.artifacts_dir / "popularity" / "item_popularity_normalized.parquet",
+            self.artifacts_dir / "popularity" / "item_popularity.parquet",
+            # Tìm trong data/processed (từ project root)
+            Path(__file__).resolve().parent.parent.parent.parent / "data" / "processed" / "item_popularity.parquet",
+            Path(__file__).resolve().parent.parent.parent.parent / "data" / "processed" / "item_popularity_normalized.parquet",
+        ]
+        
+        popularity_path = None
+        for path in possible_paths:
+            if path.exists():
+                popularity_path = path
+                logger.info(f"Found popularity data at: {popularity_path}")
+                break
+        
+        if popularity_path is None:
+            logger.warning(
+                f"Không tìm thấy popularity data ở các vị trí: {possible_paths}. "
+                f"Popularity recall sẽ bị skip."
+            )
+            # Tạo empty DataFrame với đúng structure để tránh lỗi
+            self._popularity_df = pd.DataFrame(columns=['item_id', 'popularity_score'])
+            logger.warning("Using empty popularity DataFrame - popularity recall will return no items")
+            return
         
         logger.debug(f"Loading {popularity_path}")
         self._popularity_df = pd.read_parquet(popularity_path)
         logger.debug(f"popularity_df shape: {self._popularity_df.shape}")
         logger.debug(f"popularity_df columns: {list(self._popularity_df.columns)}")
         
-        # Validate columns
-        required_cols = ['item_id', 'popularity_score']
-        missing_cols = [col for col in required_cols if col not in self._popularity_df.columns]
-        if missing_cols:
-            raise ValueError(f"Thiếu columns trong popularity data: {missing_cols}")
+        # Validate và tính popularity_score nếu chưa có
+        if 'item_id' not in self._popularity_df.columns:
+            logger.error("Thiếu column 'item_id' trong popularity data")
+            self._popularity_df = pd.DataFrame(columns=['item_id', 'popularity_score'])
+            return
+        
+        # Nếu chưa có popularity_score, tính từ interaction_count và mean_rating
+        if 'popularity_score' not in self._popularity_df.columns:
+            logger.info("Column 'popularity_score' không có, sẽ tính từ interaction_count và mean_rating")
+            
+            # Normalize interaction_count (0-1 scale)
+            if 'interaction_count' in self._popularity_df.columns:
+                max_interactions = self._popularity_df['interaction_count'].max()
+                if max_interactions > 0:
+                    normalized_interactions = self._popularity_df['interaction_count'] / max_interactions
+                else:
+                    normalized_interactions = pd.Series([0.0] * len(self._popularity_df))
+            else:
+                normalized_interactions = pd.Series([0.5] * len(self._popularity_df))
+            
+            # Normalize mean_rating (0-1 scale, giả sử rating từ 1-5)
+            if 'mean_rating' in self._popularity_df.columns:
+                normalized_ratings = (self._popularity_df['mean_rating'] - 1.0) / 4.0  # Scale từ 1-5 -> 0-1
+                normalized_ratings = normalized_ratings.fillna(0.5)  # Default 0.5 nếu NaN
+            else:
+                normalized_ratings = pd.Series([0.5] * len(self._popularity_df))
+            
+            # Tính popularity_score = 0.7 * normalized_interactions + 0.3 * normalized_ratings
+            # Ưu tiên interaction_count hơn rating
+            self._popularity_df['popularity_score'] = (
+                0.7 * normalized_interactions + 0.3 * normalized_ratings
+            )
+            logger.info("Đã tính popularity_score từ interaction_count và mean_rating")
         
         logger.info("Popularity data loaded successfully")
     
@@ -214,6 +264,11 @@ class RecallService:
         """
         # Load popularity data nếu chưa load
         self._load_popularity_data()
+        
+        # Kiểm tra nếu DataFrame rỗng
+        if self._popularity_df is None or len(self._popularity_df) == 0:
+            logger.warning("Popularity DataFrame is empty, returning empty list")
+            return []
         
         # Sort theo popularity_score descending
         sorted_df = self._popularity_df.sort_values('popularity_score', ascending=False)

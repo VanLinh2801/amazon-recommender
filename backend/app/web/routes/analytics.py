@@ -6,6 +6,7 @@ API endpoints để cung cấp dữ liệu thống kê cho dashboard.
 """
 
 import logging
+import json
 from pathlib import Path
 from typing import List, Dict, Any
 from fastapi import APIRouter, HTTPException
@@ -33,6 +34,12 @@ PROJECT_ROOT = get_project_root()
 DATA_DIR = PROJECT_ROOT / "data"
 PROCESSED_DIR = DATA_DIR / "processed"
 EMBEDDING_DIR = DATA_DIR / "embedding"
+
+# Log paths for debugging
+logger.info(f"PROJECT_ROOT: {PROJECT_ROOT}")
+logger.info(f"DATA_DIR: {DATA_DIR} (exists: {DATA_DIR.exists()})")
+logger.info(f"PROCESSED_DIR: {PROCESSED_DIR} (exists: {PROCESSED_DIR.exists()})")
+logger.info(f"EMBEDDING_DIR: {EMBEDDING_DIR} (exists: {EMBEDDING_DIR.exists()})")
 
 
 def get_rating_distribution(df: pl.DataFrame) -> List[Dict[str, Any]]:
@@ -85,9 +92,20 @@ def get_top_items(df: pl.DataFrame, top_n: int = 20) -> List[Dict[str, Any]]:
 async def get_rating_distribution_endpoint():
     """Lấy phân bố rating từ interactions."""
     try:
+        if not PROCESSED_DIR.exists():
+            return {
+                "success": False,
+                "message": "Data directory not found. Please run data preprocessing scripts first.",
+                "data": None
+            }
+        
         interactions_path = PROCESSED_DIR / "interactions_5core.parquet"
         if not interactions_path.exists():
-            raise HTTPException(status_code=404, detail="Interactions file not found")
+            return {
+                "success": False,
+                "message": f"Interactions file not found: {interactions_path}",
+                "data": None
+            }
         
         df = pl.read_parquet(str(interactions_path))
         distribution = get_rating_distribution(df)
@@ -98,17 +116,72 @@ async def get_rating_distribution_endpoint():
             "total": sum(item["count"] for item in distribution)
         }
     except Exception as e:
-        logger.error(f"Error getting rating distribution: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error getting rating distribution: {e}", exc_info=True)
+        return {
+            "success": False,
+            "message": f"Error processing rating distribution: {str(e)}",
+            "data": None
+        }
+
+
+@router.get("/model-metrics")
+async def get_recommendation_metrics():
+    """Lấy recommendation metrics (RMSE, MAE, Precision@K, Recall@K)."""
+    try:
+        # Tìm metrics file
+        metrics_paths = [
+            PROJECT_ROOT / "backend" / "artifacts" / "metrics" / "recommendation_metrics.json",
+            PROJECT_ROOT / "artifacts" / "metrics" / "recommendation_metrics.json",
+            PROJECT_ROOT / "backend" / "artifacts" / "mf" / "metrics.json",
+            PROJECT_ROOT / "artifacts" / "mf" / "metrics.json",
+        ]
+        
+        metrics_data = None
+        for path in metrics_paths:
+            if path.exists():
+                with open(path, 'r', encoding='utf-8') as f:
+                    metrics_data = json.load(f)
+                logger.info(f"Loaded metrics from: {path}")
+                break
+        
+        if not metrics_data:
+            return {
+                "success": False,
+                "message": "Metrics file not found. Please run evaluation script first.",
+                "data": None
+            }
+        
+        return {
+            "success": True,
+            "data": metrics_data
+        }
+    except Exception as e:
+        logger.error(f"Error getting recommendation metrics: {e}", exc_info=True)
+        return {
+            "success": False,
+            "message": f"Error loading metrics: {str(e)}",
+            "data": None
+        }
 
 
 @router.get("/category-distribution")
 async def get_category_distribution_endpoint(top_n: int = 20):
     """Lấy phân bố category từ metadata."""
     try:
+        if not PROCESSED_DIR.exists():
+            return {
+                "success": False,
+                "message": "Data directory not found. Please run data preprocessing scripts first.",
+                "data": None
+            }
+        
         metadata_path = PROCESSED_DIR / "metadata_clean.parquet"
         if not metadata_path.exists():
-            raise HTTPException(status_code=404, detail="Metadata file not found")
+            return {
+                "success": False,
+                "message": f"Metadata file not found: {metadata_path}",
+                "data": None
+            }
         
         df = pl.read_parquet(str(metadata_path))
         distribution = get_category_distribution(df, top_n)
@@ -119,17 +192,32 @@ async def get_category_distribution_endpoint(top_n: int = 20):
             "total_categories": len(distribution)
         }
     except Exception as e:
-        logger.error(f"Error getting category distribution: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error getting category distribution: {e}", exc_info=True)
+        return {
+            "success": False,
+            "message": f"Error processing category distribution: {str(e)}",
+            "data": None
+        }
 
 
 @router.get("/top-items")
 async def get_top_items_endpoint(top_n: int = 20):
     """Lấy top items theo số lượng interactions."""
     try:
+        if not PROCESSED_DIR.exists():
+            return {
+                "success": False,
+                "message": "Data directory not found. Please run data preprocessing scripts first.",
+                "data": None
+            }
+        
         interactions_path = PROCESSED_DIR / "interactions_5core.parquet"
         if not interactions_path.exists():
-            raise HTTPException(status_code=404, detail="Interactions file not found")
+            return {
+                "success": False,
+                "message": f"Interactions file not found: {interactions_path}",
+                "data": None
+            }
         
         df = pl.read_parquet(str(interactions_path))
         top_items = get_top_items(df, top_n)
@@ -139,20 +227,35 @@ async def get_top_items_endpoint(top_n: int = 20):
             "data": top_items
         }
     except Exception as e:
-        logger.error(f"Error getting top items: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error getting top items: {e}", exc_info=True)
+        return {
+            "success": False,
+            "message": f"Error processing top items: {str(e)}",
+            "data": None
+        }
 
 
 @router.get("/interaction-stats")
 async def get_interaction_stats():
     """Lấy thống kê tổng quan về interactions."""
     try:
+        if not PROCESSED_DIR.exists():
+            return {
+                "success": False,
+                "message": "Data directory not found. Please run data preprocessing scripts first.",
+                "data": None
+            }
+        
         train_path = PROCESSED_DIR / "interactions_5core_train.parquet"
         test_path = PROCESSED_DIR / "interactions_5core_test.parquet"
         all_path = PROCESSED_DIR / "interactions_5core.parquet"
         
         if not all_path.exists():
-            raise HTTPException(status_code=404, detail="Interactions file not found")
+            return {
+                "success": False,
+                "message": f"Interactions file not found: {all_path}",
+                "data": None
+            }
         
         df_all = pl.read_parquet(str(all_path))
         
@@ -179,19 +282,54 @@ async def get_interaction_stats():
             "data": stats
         }
     except Exception as e:
-        logger.error(f"Error getting interaction stats: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error getting interaction stats: {e}", exc_info=True)
+        return {
+            "success": False,
+            "message": f"Error processing interaction stats: {str(e)}",
+            "data": None
+        }
 
 
 @router.get("/embedding-stats")
 async def get_embedding_stats():
     """Lấy thống kê về embedding data."""
     try:
-        semantic_path = EMBEDDING_DIR / "semantic_attributes.parquet"
-        if not semantic_path.exists():
-            raise HTTPException(status_code=404, detail="Semantic attributes file not found")
+        # Kiểm tra thư mục data có tồn tại không
+        if not DATA_DIR.exists():
+            logger.warning(f"DATA_DIR does not exist: {DATA_DIR}")
+            return {
+                "success": False,
+                "message": "Data directory not found. Please ensure data preprocessing has been completed.",
+                "data": None
+            }
         
-        df = pl.read_parquet(str(semantic_path))
+        # Thử tìm semantic_attributes.parquet trong embedding directory
+        semantic_path = EMBEDDING_DIR / "semantic_attributes.parquet"
+        
+        # Nếu không có, thử dùng items_for_rs.parquet hoặc metadata_clean.parquet
+        if not semantic_path.exists():
+            logger.info(f"semantic_attributes.parquet not found at {semantic_path}, trying fallback files...")
+            
+            # Fallback 1: items_for_rs.parquet
+            fallback_path = PROCESSED_DIR / "items_for_rs.parquet"
+            if fallback_path.exists():
+                logger.info(f"Using fallback: {fallback_path}")
+                df = pl.read_parquet(str(fallback_path))
+            else:
+                # Fallback 2: metadata_clean.parquet
+                fallback_path = PROCESSED_DIR / "metadata_clean.parquet"
+                if fallback_path.exists():
+                    logger.info(f"Using fallback: {fallback_path}")
+                    df = pl.read_parquet(str(fallback_path))
+                else:
+                    logger.error(f"No embedding data files found. Checked: {semantic_path}, {PROCESSED_DIR / 'items_for_rs.parquet'}, {fallback_path}")
+                    return {
+                        "success": False,
+                        "message": "Embedding data files not found. Please run data preprocessing scripts first.",
+                        "data": None
+                    }
+        else:
+            df = pl.read_parquet(str(semantic_path))
         
         stats = {
             "total_items": len(df),
@@ -202,23 +340,46 @@ async def get_embedding_stats():
         # Thống kê các cột nếu có
         if "main_category" in df.columns:
             stats["unique_categories"] = df["main_category"].n_unique()
+        elif "category" in df.columns:
+            stats["unique_categories"] = df["category"].n_unique()
+        
+        # Thống kê item_id nếu có
+        if "item_id" in df.columns:
+            stats["unique_items"] = df["item_id"].n_unique()
+        elif "parent_asin" in df.columns:
+            stats["unique_items"] = df["parent_asin"].n_unique()
         
         return {
             "success": True,
             "data": stats
         }
     except Exception as e:
-        logger.error(f"Error getting embedding stats: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error getting embedding stats: {e}", exc_info=True)
+        return {
+            "success": False,
+            "message": f"Error processing embedding stats: {str(e)}",
+            "data": None
+        }
 
 
 @router.get("/user-activity")
 async def get_user_activity():
     """Lấy thống kê về hoạt động của users."""
     try:
+        if not PROCESSED_DIR.exists():
+            return {
+                "success": False,
+                "message": "Data directory not found. Please run data preprocessing scripts first.",
+                "data": None
+            }
+        
         interactions_path = PROCESSED_DIR / "interactions_5core.parquet"
         if not interactions_path.exists():
-            raise HTTPException(status_code=404, detail="Interactions file not found")
+            return {
+                "success": False,
+                "message": f"Interactions file not found: {interactions_path}",
+                "data": None
+            }
         
         df = pl.read_parquet(str(interactions_path))
         
@@ -252,17 +413,32 @@ async def get_user_activity():
             }
         }
     except Exception as e:
-        logger.error(f"Error getting user activity: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error getting user activity: {e}", exc_info=True)
+        return {
+            "success": False,
+            "message": f"Error processing user activity: {str(e)}",
+            "data": None
+        }
 
 
 @router.get("/item-popularity")
 async def get_item_popularity(top_n: int = 20):
     """Lấy thống kê về popularity của items."""
     try:
+        if not PROCESSED_DIR.exists():
+            return {
+                "success": False,
+                "message": "Data directory not found. Please run data preprocessing scripts first.",
+                "data": None
+            }
+        
         popularity_path = PROCESSED_DIR / "item_popularity.parquet"
         if not popularity_path.exists():
-            raise HTTPException(status_code=404, detail="Item popularity file not found")
+            return {
+                "success": False,
+                "message": f"Item popularity file not found: {popularity_path}",
+                "data": None
+            }
         
         df = pl.read_parquet(str(popularity_path))
         
@@ -285,8 +461,12 @@ async def get_item_popularity(top_n: int = 20):
             ]
         }
     except Exception as e:
-        logger.error(f"Error getting item popularity: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error getting item popularity: {e}", exc_info=True)
+        return {
+            "success": False,
+            "message": f"Error processing item popularity: {str(e)}",
+            "data": None
+        }
 
 
 @router.get("/cleaning-stats")
@@ -329,5 +509,31 @@ async def get_cleaning_stats():
         }
     except Exception as e:
         logger.error(f"Error getting cleaning stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/model-metrics")
+async def get_model_metrics():
+    """Lấy metrics của model MF từ file JSON."""
+    try:
+        metrics_path = PROJECT_ROOT / "artifacts" / "mf" / "metrics.json"
+        
+        if not metrics_path.exists():
+            # Nếu chưa có metrics, trả về None
+            return {
+                "success": False,
+                "message": "Metrics file not found. Please run test_mf_metrics.py first.",
+                "data": None
+            }
+        
+        with open(metrics_path, 'r', encoding='utf-8') as f:
+            metrics = json.load(f)
+        
+        return {
+            "success": True,
+            "data": metrics
+        }
+    except Exception as e:
+        logger.error(f"Error getting model metrics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -181,11 +181,41 @@ def load_popularity_data(popularity_path: Path) -> pl.DataFrame:
     print(f"[OK] Đã đọc {len(df_pop):,} items")
     print(f"  Columns: {df_pop.columns}")
     
-    # Kiểm tra schema
-    required_cols = ['item_id', 'popularity_score', 'rating_score']
-    missing_cols = [col for col in required_cols if col not in df_pop.columns]
-    if missing_cols:
-        raise ValueError(f"Thiếu các cột: {missing_cols}")
+    # Kiểm tra item_id
+    if 'item_id' not in df_pop.columns:
+        raise ValueError("Thiếu cột 'item_id'")
+    
+    # Tính popularity_score và rating_score nếu chưa có
+    if 'popularity_score' not in df_pop.columns or 'rating_score' not in df_pop.columns:
+        print("  Tính popularity_score và rating_score từ interaction_count và mean_rating...")
+        
+        # Normalize interaction_count (0-1 scale)
+        if 'interaction_count' in df_pop.columns:
+            max_interactions = df_pop['interaction_count'].max()
+            if max_interactions > 0:
+                df_pop = df_pop.with_columns([
+                    (pl.col('interaction_count') / max_interactions).alias('popularity_score')
+                ])
+            else:
+                df_pop = df_pop.with_columns([
+                    pl.lit(0.5).alias('popularity_score')
+                ])
+        else:
+            df_pop = df_pop.with_columns([
+                pl.lit(0.5).alias('popularity_score')
+            ])
+        
+        # Normalize mean_rating (1-5 -> 0-1 scale)
+        if 'mean_rating' in df_pop.columns:
+            df_pop = df_pop.with_columns([
+                ((pl.col('mean_rating') - 1.0) / 4.0).alias('rating_score')
+            ])
+        else:
+            df_pop = df_pop.with_columns([
+                pl.lit(0.5).alias('rating_score')
+            ])
+        
+        print("  [OK] Đã tính popularity_score và rating_score")
     
     # Thống kê
     print(f"\nThống kê popularity:")
@@ -353,11 +383,23 @@ def main():
     project_root = BASE_DIR
     train_path = project_root / "data" / "processed" / "interactions_5core_train.parquet"
     test_path = project_root / "data" / "processed" / "interactions_5core_test.parquet"
-    mf_artifacts_dir = project_root / "artifacts" / "mf"
-    popularity_path = project_root / "artifacts" / "popularity" / "item_popularity_normalized.parquet"
+    
+    # Tìm artifacts ở backend/artifacts hoặc artifacts
+    mf_artifacts_dir = project_root / "backend" / "artifacts" / "mf"
+    if not mf_artifacts_dir.exists():
+        mf_artifacts_dir = project_root / "artifacts" / "mf"
+    
+    popularity_path = project_root / "backend" / "artifacts" / "popularity" / "item_popularity_normalized.parquet"
+    if not popularity_path.exists():
+        popularity_path = project_root / "artifacts" / "popularity" / "item_popularity_normalized.parquet"
+    # Fallback: dùng data/processed/item_popularity.parquet
+    if not popularity_path.exists():
+        popularity_path = project_root / "data" / "processed" / "item_popularity.parquet"
     
     # Đường dẫn output
-    output_dir = project_root / "artifacts" / "ranking"
+    output_dir = project_root / "backend" / "artifacts" / "ranking"
+    if not output_dir.parent.exists():
+        output_dir = project_root / "artifacts" / "ranking"
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / "ranking_dataset.parquet"
     
@@ -391,7 +433,7 @@ def main():
         print(f"\nSố dòng dataset: {len(df_ranking):,}")
         
         # Thống kê label
-        label_counts = df_ranking.group_by('label').agg(pl.len().alias('count')).sort('label')
+        label_counts = df_ranking.group_by('label').agg(pl.count().alias('count')).sort('label')
         print(f"\nTỷ lệ label:")
         for row in label_counts.to_dicts():
             label = row['label']

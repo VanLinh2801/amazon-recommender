@@ -21,8 +21,9 @@ from sqlalchemy import text, Table, MetaData
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 
-# Connection string
-DATABASE_URL = "postgresql+asyncpg://postgres:VanLinh04@localhost:5432/recommender"
+# Connection string - Sử dụng từ config để đảm bảo consistency
+from app.config import settings
+DATABASE_URL = settings.database_url
 
 # Batch size cho insert
 BATCH_SIZE = 1000

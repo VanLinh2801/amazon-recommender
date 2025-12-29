@@ -18,7 +18,7 @@ import numpy as np
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
-from app.models.train_ranking_model import (
+from scripts.models.train_ranking_model import (
     load_ranking_dataset,
     train_logistic_regression
 )
@@ -76,8 +76,14 @@ def main():
     
     # Đường dẫn
     project_root = BASE_DIR
-    dataset_path = project_root / "artifacts" / "ranking" / "ranking_dataset.parquet"
-    output_dir = project_root / "artifacts" / "ranking"
+    # Tìm dataset ở backend/artifacts hoặc artifacts
+    dataset_path = project_root / "backend" / "artifacts" / "ranking" / "ranking_dataset.parquet"
+    if not dataset_path.exists():
+        dataset_path = project_root / "artifacts" / "ranking" / "ranking_dataset.parquet"
+    
+    output_dir = project_root / "backend" / "artifacts" / "ranking"
+    if not output_dir.parent.exists():
+        output_dir = project_root / "artifacts" / "ranking"
     
     try:
         # Bước 1: Load dataset
@@ -106,7 +112,7 @@ def main():
         model = train_logistic_regression(X_train, y_train)
         
         # Bước 4: Evaluate trên validation set
-        from app.models.train_ranking_model import evaluate_model
+        from scripts.models.train_ranking_model import evaluate_model
         metrics = evaluate_model(model, X_val, y_val)
         
         print(f"\nValidation Metrics:")

@@ -4,16 +4,26 @@ from typing import Optional, List
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Load .env file if exists
+try:
+    from dotenv import load_dotenv
+    env_path = BASE_DIR / ".env"
+    if env_path.exists():
+        load_dotenv(dotenv_path=env_path)
+        print(f"[OK] Loaded .env file from {env_path}")
+except ImportError:
+    # python-dotenv not installed, skip
+    pass
+
 
 class Settings:
     # Data directory
     data_dir: Path = BASE_DIR
     
-    # Database
-    database_url: str = os.getenv(
-        "DATABASE_URL",
-        "postgresql+asyncpg://postgres:VanLinh04@localhost:5432/recommender"
-    )
+    # Database - Force sử dụng local database
+    # Bỏ qua DATABASE_URL environment variable để luôn dùng local database
+    # Local database: postgresql+asyncpg://postgres:VanLinh04@localhost:5432/recommender
+    database_url: str = "postgresql+asyncpg://postgres:VanLinh04@localhost:5432/recommender"
     
     # JWT Settings
     jwt_secret_key: str = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")

@@ -1,11 +1,16 @@
 "use client"
 
+import { useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Star, ShoppingCart } from "lucide-react"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { useToast } from "@/hooks/use-toast"
+import { useAuth } from "@/contexts/auth-context"
+import { api } from "@/lib/api"
 
 interface ProductCardProps {
   id: string
@@ -16,6 +21,7 @@ interface ProductCardProps {
   image: string
   price?: string | null
   isNew?: boolean
+  isAuthenticated?: boolean
 }
 
 export function ProductCard({
@@ -27,7 +33,47 @@ export function ProductCard({
   image,
   price,
   isNew,
+  isAuthenticated = false,
 }: ProductCardProps) {
+  const router = useRouter()
+  const { toast } = useToast()
+  const { user } = useAuth()
+  
+  // Log view event when component mounts (realtime tracking)
+  useEffect(() => {
+    if (user && id && isAuthenticated) {
+      // Log view event asynchronously (don't block rendering)
+      api.logEvent({
+        user_id: user.id,
+        asin: id,
+        event_type: "view",
+        metadata: { source: "recommendation", category: category }
+      }).catch(error => {
+        console.error("Failed to log view event:", error)
+      })
+    }
+  }, [user, id, isAuthenticated, category])
+
+  const handleAddToCart = (e: React.MouseEvent) => {
+    e.preventDefault()
+    
+    if (!isAuthenticated) {
+      toast({
+        title: "Sign in required",
+        description: "Please sign in to add items to your cart.",
+        variant: "default",
+      })
+      router.push("/login")
+      return
+    }
+    
+    // TODO: Implement add to cart functionality
+    toast({
+      title: "Added to cart",
+      description: `${title} has been added to your cart.`,
+    })
+  }
+
   return (
     <Card className="group overflow-hidden transition-all hover:shadow-lg">
       <Link href={`/product/${id}`}>
@@ -72,7 +118,14 @@ export function ProductCard({
         ) : (
           <span className="text-sm text-muted-foreground italic">Price not available</span>
         )}
-        <Button size="sm" variant="secondary" className="h-8 w-8 p-0" onClick={(e) => e.preventDefault()}>
+        <Button 
+          size="sm" 
+          variant="secondary" 
+          className="h-8 w-8 p-0" 
+          onClick={handleAddToCart}
+          disabled={!isAuthenticated}
+          title={!isAuthenticated ? "Sign in to add to cart" : "Add to cart"}
+        >
           <ShoppingCart className="h-4 w-4" />
           <span className="sr-only">Add to cart</span>
         </Button>

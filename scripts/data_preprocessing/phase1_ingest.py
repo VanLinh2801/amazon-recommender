@@ -30,8 +30,38 @@ def ingest_reviews_data(file_path: Path) -> pl.DataFrame:
         Polars DataFrame chứa reviews data
     """
     print(f"Đang đọc file reviews: {file_path}")
-    df = pl.read_ndjson(str(file_path))
-    return df
+    try:
+        # Thử đọc trực tiếp với Polars
+        df = pl.read_ndjson(str(file_path))
+        return df
+    except Exception as e:
+        print(f"⚠️  Lỗi khi đọc với Polars: {e}")
+        print("   Đang thử đọc với pandas rồi convert sang Polars...")
+        # Fallback: đọc với pandas rồi convert
+        import pandas as pd
+        import json
+        
+        data = []
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line_num, line in enumerate(f, 1):
+                try:
+                    data.append(json.loads(line.strip()))
+                except json.JSONDecodeError as je:
+                    print(f"⚠️  Lỗi JSON ở dòng {line_num}: {je}")
+                    continue
+                except Exception as e:
+                    print(f"⚠️  Lỗi khác ở dòng {line_num}: {e}")
+                    continue
+        
+        if not data:
+            raise ValueError("Không đọc được dữ liệu nào từ file")
+        
+        # Convert sang pandas DataFrame
+        pdf = pd.DataFrame(data)
+        # Convert sang Polars
+        df = pl.from_pandas(pdf)
+        print(f"✅ Đã đọc {len(df):,} dòng bằng pandas fallback")
+        return df
 
 
 def ingest_metadata(file_path: Path) -> pl.DataFrame:
@@ -45,8 +75,38 @@ def ingest_metadata(file_path: Path) -> pl.DataFrame:
         Polars DataFrame chứa metadata
     """
     print(f"Đang đọc file metadata: {file_path}")
-    df = pl.read_ndjson(str(file_path))
-    return df
+    try:
+        # Thử đọc trực tiếp với Polars
+        df = pl.read_ndjson(str(file_path))
+        return df
+    except Exception as e:
+        print(f"⚠️  Lỗi khi đọc với Polars: {e}")
+        print("   Đang thử đọc với pandas rồi convert sang Polars...")
+        # Fallback: đọc với pandas rồi convert
+        import pandas as pd
+        import json
+        
+        data = []
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line_num, line in enumerate(f, 1):
+                try:
+                    data.append(json.loads(line.strip()))
+                except json.JSONDecodeError as je:
+                    print(f"⚠️  Lỗi JSON ở dòng {line_num}: {je}")
+                    continue
+                except Exception as e:
+                    print(f"⚠️  Lỗi khác ở dòng {line_num}: {e}")
+                    continue
+        
+        if not data:
+            raise ValueError("Không đọc được dữ liệu nào từ file")
+        
+        # Convert sang pandas DataFrame
+        pdf = pd.DataFrame(data)
+        # Convert sang Polars
+        df = pl.from_pandas(pdf)
+        print(f"✅ Đã đọc {len(df):,} dòng bằng pandas fallback")
+        return df
 
 
 def main():

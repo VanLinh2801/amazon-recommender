@@ -107,59 +107,6 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          {/* Summary Cards */}
-          {interactionStats && (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Interactions</CardTitle>
-                  <Activity className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                  <div className="text-2xl font-bold">{interactionStats.total_interactions?.toLocaleString() || 'N/A'}</div>
-                  <p className="text-xs text-muted-foreground">
-                    {interactionStats.unique_users?.toLocaleString() || 'N/A'} users
-                  </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Unique Items</CardTitle>
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                  <div className="text-2xl font-bold">{interactionStats.unique_items?.toLocaleString() || 'N/A'}</div>
-                  <p className="text-xs text-muted-foreground">
-                    Avg rating: {interactionStats.avg_rating?.toFixed(2) || 'N/A'}
-                  </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Items Embedded</CardTitle>
-                  <Sparkles className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                  <div className="text-2xl font-bold">{embeddingStats?.total_items?.toLocaleString() || 'N/A'}</div>
-                  <p className="text-xs text-muted-foreground">
-                    {embeddingStats?.unique_categories || 'N/A'} categories
-                  </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Avg Interactions/User</CardTitle>
-                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                  <div className="text-2xl font-bold">{userActivity?.avg_interactions_per_user?.toFixed(1) || 'N/A'}</div>
-                  <p className="text-xs text-muted-foreground">
-                    Median: {userActivity?.median_interactions_per_user?.toFixed(1) || 'N/A'}
-                  </p>
-              </CardContent>
-            </Card>
-          </div>
-          )}
 
           <Tabs defaultValue="overview" className="space-y-4">
             <TabsList className="grid w-full grid-cols-5">

@@ -24,7 +24,7 @@ if sys.platform == "win32":
 
 def load_raw_data(project_root: Path):
     """
-    Load dữ liệu thô từ Phase 1.
+    Load dữ liệu thô từ Phase 1 (ưu tiên đọc từ parquet output của phase1).
     
     Args:
         project_root: Đường dẫn đến root của project
@@ -32,7 +32,21 @@ def load_raw_data(project_root: Path):
     Returns:
         Tuple (reviews_df, metadata_df)
     """
+    data_processed_dir = project_root / "data" / "processed"
     data_raw_dir = project_root / "data" / "raw"
+    
+    # Ưu tiên đọc từ output của phase1 (parquet) nếu có
+    reviews_parquet = data_processed_dir / "reviews_raw.parquet"
+    metadata_parquet = data_processed_dir / "metadata_raw.parquet"
+    
+    if reviews_parquet.exists() and metadata_parquet.exists():
+        print("Đang load dữ liệu từ output của Phase 1 (parquet)...")
+        reviews_df = pl.read_parquet(str(reviews_parquet))
+        metadata_df = pl.read_parquet(str(metadata_parquet))
+        return reviews_df, metadata_df
+    
+    # Fallback: đọc từ raw files (với xử lý lỗi giống phase1)
+    print("⚠️  Không tìm thấy output của Phase 1, đang đọc từ raw files...")
     
     # Tìm file reviews
     reviews_file = None
@@ -56,9 +70,40 @@ def load_raw_data(project_root: Path):
     if not metadata_file or not metadata_file.exists():
         raise FileNotFoundError(f"Không tìm thấy file metadata: {data_raw_dir}")
     
-    print("Đang load dữ liệu thô từ Phase 1...")
-    reviews_df = pl.read_ndjson(str(reviews_file))
-    metadata_df = pl.read_ndjson(str(metadata_file))
+    print("Đang load dữ liệu thô từ raw files...")
+    
+    # Đọc với fallback pandas nếu cần
+    try:
+        reviews_df = pl.read_ndjson(str(reviews_file))
+    except Exception as e:
+        print(f"⚠️  Lỗi khi đọc reviews với Polars: {e}")
+        print("   Đang thử đọc với pandas rồi convert...")
+        import pandas as pd
+        import json
+        data = []
+        with open(reviews_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                try:
+                    data.append(json.loads(line.strip()))
+                except:
+                    continue
+        reviews_df = pl.from_pandas(pd.DataFrame(data))
+    
+    try:
+        metadata_df = pl.read_ndjson(str(metadata_file))
+    except Exception as e:
+        print(f"⚠️  Lỗi khi đọc metadata với Polars: {e}")
+        print("   Đang thử đọc với pandas rồi convert...")
+        import pandas as pd
+        import json
+        data = []
+        with open(metadata_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                try:
+                    data.append(json.loads(line.strip()))
+                except:
+                    continue
+        metadata_df = pl.from_pandas(pd.DataFrame(data))
     
     return reviews_df, metadata_df
 
@@ -121,7 +166,7 @@ def normalize_metadata(metadata_df: pl.DataFrame) -> pl.DataFrame:
     all_original_cols = [pl.col(col) for col in metadata_df.columns]
     raw_metadata_col = pl.struct(all_original_cols).map_elements(
         row_to_json,
-        return_dtype=pl.String
+        return_dtype=pl.Utf8
     ).alias("raw_metadata")
     
     # Chọn các cột cần giữ và đổi tên, đồng thời thêm raw_metadata
@@ -157,7 +202,7 @@ def normalize_metadata(metadata_df: pl.DataFrame) -> pl.DataFrame:
     normalized = normalized.with_columns([
         pl.col("images").map_elements(
             extract_primary_image,
-            return_dtype=pl.String
+            return_dtype=pl.Utf8
         ).alias("primary_image")
     ])
     

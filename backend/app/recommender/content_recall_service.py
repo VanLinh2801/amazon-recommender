@@ -67,7 +67,9 @@ class ContentBasedRecallService:
         try:
             return self._qdrant_manager.get_item_vector(item_id)
         except Exception as e:
-            logger.warning(f"Could not get vector for item {item_id}: {e}")
+            # Chỉ log warning nếu là lỗi thực sự (không phải "not found")
+            if "not found" not in str(e).lower():
+                logger.debug(f"Could not get vector for item {item_id}: {e}")
             return None
     
     def compute_content_scores(

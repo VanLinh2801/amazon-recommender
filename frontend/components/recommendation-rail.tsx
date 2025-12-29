@@ -4,9 +4,10 @@ interface RecommendationRailProps {
   title: string
   description?: string
   products: any[]
+  isAuthenticated?: boolean
 }
 
-export function RecommendationRail({ title, description, products }: RecommendationRailProps) {
+export function RecommendationRail({ title, description, products, isAuthenticated = false }: RecommendationRailProps) {
   return (
     <section className="space-y-6">
       <div className="space-y-1">
@@ -24,6 +25,7 @@ export function RecommendationRail({ title, description, products }: Recommendat
             reviews={product.reviews}
             image={product.image}
             isNew={product.isNew}
+            isAuthenticated={isAuthenticated}
           />
         ))}
       </div>
