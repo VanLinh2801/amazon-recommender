@@ -6,6 +6,7 @@ Async worker service để ghi interaction_logs vào PostgreSQL (LONG-TERM).
 Service này chạy trong background task, KHÔNG block request.
 """
 
+import json
 import logging
 from typing import Optional, Dict, Any
 from sqlalchemy import text
@@ -46,6 +47,11 @@ class EventLoggingService:
                 # PostgreSQL JSONB có thể nhận dict trực tiếp
                 # SQLAlchemy với asyncpg hỗ trợ named parameters
                 # Type casting được xử lý tự động
+                # Convert metadata dict to JSON string for asyncpg
+                metadata_json = None
+                if interaction_log.metadata:
+                    metadata_json = json.dumps(interaction_log.metadata)
+                
                 await db.execute(
                     text("""
                         INSERT INTO interaction_logs (
@@ -66,7 +72,7 @@ class EventLoggingService:
                         "user_id": interaction_log.user_id,
                         "asin": interaction_log.asin,
                         "event_type": interaction_log.event_type.value,
-                        "metadata": interaction_log.metadata if interaction_log.metadata else None
+                        "metadata": metadata_json
                     }
                 )
                 

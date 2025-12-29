@@ -8,9 +8,12 @@ API endpoints để lấy recommendations cho user.
 import logging
 import asyncio
 import concurrent.futures
-from typing import Optional
+import random
+from typing import Optional, List, Dict
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
 
 from app.web.schemas.item import RecommendResponse, RecommendedItemResponse
 from app.web.schemas.auth import UserResponse
@@ -25,6 +28,117 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/recommend", tags=["recommendations"])
 
 
+async def get_trending_items(
+    db: AsyncSession,
+    hours: int = 24,
+    limit: int = 50
+) -> Dict[str, float]:
+    """
+    Lấy trending items từ interaction_logs dựa trên số lượng views gần đây.
+    
+    Args:
+        db: Database session
+        hours: Số giờ gần đây để tính trending (default: 24h)
+        limit: Số lượng items tối đa
+        
+    Returns:
+        Dict mapping ASIN -> trending score (số views trong khoảng thời gian)
+    """
+    try:
+        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+        
+        query = text("""
+            SELECT 
+                asin,
+                COUNT(*) as view_count,
+                COUNT(DISTINCT user_id) as unique_users
+            FROM interaction_logs
+            WHERE event_type = 'view'
+                AND ts >= :cutoff_time
+            GROUP BY asin
+            ORDER BY view_count DESC, unique_users DESC
+            LIMIT :limit
+        """)
+        
+        result = await db.execute(query, {
+            "cutoff_time": cutoff_time,
+            "limit": limit
+        })
+        
+        trending_scores = {}
+        for row in result.fetchall():
+            # Tính score: view_count * 1.0 + unique_users * 0.5
+            score = float(row.view_count) * 1.0 + float(row.unique_users) * 0.5
+            trending_scores[row.asin] = score
+        
+        logger.info(f"Found {len(trending_scores)} trending items in last {hours} hours")
+        return trending_scores
+        
+    except Exception as e:
+        logger.warning(f"Error getting trending items: {e}")
+        return {}
+
+
+def shuffle_recommendations(
+    recommendations: List[RecommendedItemResponse],
+    seed: Optional[int] = None,
+    trending_scores: Optional[Dict[str, float]] = None
+) -> List[RecommendedItemResponse]:
+    """
+    Shuffle recommendations dựa trên seed và boost trending items.
+    
+    Args:
+        recommendations: List of recommendations
+        seed: Random seed để shuffle (None = random mỗi lần)
+        trending_scores: Dict mapping ASIN -> trending score
+        
+    Returns:
+        Shuffled list of recommendations
+    """
+    if not recommendations:
+        return recommendations
+    
+    # Set seed nếu có
+    if seed is not None:
+        random.seed(seed)
+    else:
+        random.seed()  # Random seed
+    
+    # Nếu có trending scores, boost trending items
+    if trending_scores:
+        # Tách thành 2 nhóm: trending và non-trending
+        trending_items = []
+        non_trending_items = []
+        
+        for rec in recommendations:
+            if rec.asin in trending_scores:
+                trending_items.append((rec, trending_scores[rec.asin]))
+            else:
+                non_trending_items.append(rec)
+        
+        # Sort trending items theo score
+        trending_items.sort(key=lambda x: x[1], reverse=True)
+        trending_items = [item[0] for item in trending_items]
+        
+        # Shuffle từng nhóm
+        random.shuffle(trending_items)
+        random.shuffle(non_trending_items)
+        
+        # Kết hợp: 60% trending, 40% non-trending
+        trending_count = min(len(trending_items), int(len(recommendations) * 0.6))
+        result = trending_items[:trending_count] + non_trending_items[:len(recommendations) - trending_count]
+        
+        # Shuffle lại toàn bộ để trộn đều
+        random.shuffle(result)
+        
+        return result[:len(recommendations)]
+    else:
+        # Chỉ shuffle đơn giản
+        shuffled = recommendations.copy()
+        random.shuffle(shuffled)
+        return shuffled
+
+
 @router.get(
     "",
     response_model=RecommendResponse,
@@ -33,10 +147,13 @@ router = APIRouter(prefix="/api/recommend", tags=["recommendations"])
     Lấy recommendations cho user.
     - Nếu đã đăng nhập: Sử dụng full pipeline (MF + Popularity + Content recall)
     - Nếu chưa đăng nhập: Chỉ dùng Popularity recall (top popular items)
+    - Có thể randomize bằng seed parameter
+    - Tự động boost trending items dựa trên recent views
     """
 )
 async def get_recommendations(
     top_n: Optional[int] = Query(20, ge=1, le=100, description="Number of recommendations"),
+    seed: Optional[int] = Query(None, description="Random seed for shuffling (None = random each time)"),
     current_user: Optional[UserResponse] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -54,6 +171,9 @@ async def get_recommendations(
     try:
         # Get recommendation service
         recommendation_service = get_recommendation_service(top_n=top_n)
+        
+        # Lấy trending items từ interaction_logs (dựa trên recent views)
+        trending_scores = await get_trending_items(db, hours=24, limit=100)
         
         # Nếu chưa đăng nhập, chỉ dùng Popularity recall
         if not current_user:
@@ -154,7 +274,21 @@ async def get_recommendations(
                     if len(recommendations) >= top_n:
                         break
             
-            logger.info(f"Generated {len(recommendations)} popularity recommendations for anonymous user")
+            # Shuffle recommendations dựa trên seed và trending scores
+            recommendations = shuffle_recommendations(
+                recommendations,
+                seed=seed,
+                trending_scores=trending_scores if trending_scores else None
+            )
+            
+            # Update rank sau khi shuffle
+            for idx, rec in enumerate(recommendations):
+                rec.rank = idx + 1
+            
+            logger.info(
+                f"Generated {len(recommendations)} popularity recommendations for anonymous user "
+                f"(seed={seed}, trending_items={len(trending_scores) if trending_scores else 0})"
+            )
             
             return RecommendResponse(
                 user_id=0,
@@ -333,10 +467,22 @@ async def get_recommendations(
                 if len(recommendations) >= top_n:
                     break
         
+        # Shuffle recommendations dựa trên seed và trending scores
+        recommendations = shuffle_recommendations(
+            recommendations,
+            seed=seed,
+            trending_scores=trending_scores if trending_scores else None
+        )
+        
+        # Update rank sau khi shuffle
+        for idx, rec in enumerate(recommendations):
+            rec.rank = idx + 1
+        
         logger.info(
             f"Generated {len(recommendations)} recommendations for user {current_user.id}: "
             f"recall={recall_count}, ranking={ranking_count}, "
-            f"items_found={len(items)}/{len(asins)}"
+            f"items_found={len(items)}/{len(asins)}, "
+            f"seed={seed}, trending_items={len(trending_scores) if trending_scores else 0}"
         )
         
         return RecommendResponse(

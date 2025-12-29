@@ -21,10 +21,13 @@ export default function Home() {
       try {
         setLoading(true)
 
+        // Generate random seed mỗi lần reload để có sản phẩm khác nhau
+        const seed = Math.floor(Math.random() * 1000000)
+
         // Load recommendations cho cả user đã đăng nhập và chưa đăng nhập
         try {
-          const recData = await api.getRecommendations(20)
-          console.log("Recommendations data:", recData)
+          const recData = await api.getRecommendations(20, seed)
+          console.log("Recommendations data:", recData, "seed:", seed)
           
           if (recData && recData.recommendations) {
             const formattedRecs = recData.recommendations.map((rec) => ({
